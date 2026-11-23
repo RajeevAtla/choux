@@ -1,6 +1,7 @@
 <script lang="ts">
 import { BACKENDS, type Backend, TRIALS } from './benchmark';
 import { measure } from './measure';
+import ThemePicker from './ThemePicker.svelte';
 
 const names = { wasm: 'Wasm', webgpu: 'WebGPU' };
 let running = $state(false);
@@ -37,7 +38,10 @@ async function run() {
 <main>
   <header>
     <p class="wordmark">Choux</p>
-    <a href="./">Play chess</a>
+    <div class="header-tools">
+      <a href="./">Play chess</a>
+      <ThemePicker />
+    </div>
     <h1>Inference benchmark</h1>
     <p>
       Compare Wasm and WebGPU using a dummy chess model in a browser worker.

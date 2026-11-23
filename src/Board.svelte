@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { Color, Piece, Square } from 'chess.js';
+import sprite from './assets/pieces.svg?url&no-inline';
 import './board.css';
 
 let {
@@ -20,7 +21,6 @@ let {
   onselect: (square: Square) => void;
 } = $props();
 
-const symbols = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
 const names = {
   k: 'king',
   q: 'queen',
@@ -86,12 +86,11 @@ function navigate(event: KeyboardEvent, index: number) {
       {#if display >= 56}
         <span class="file" aria-hidden="true">{square[0]}</span>
       {/if}
-      <span
-        class="piece"
-        class:light-piece={piece?.color === 'w'}
-        aria-hidden="true"
-        >{piece ? symbols[piece.type] : ''}</span
-      >
+      {#if piece}
+        <svg class="piece" viewBox="0 0 40 40" aria-hidden="true">
+          <use href={`${sprite}#${piece.color}${piece.type}`}></use>
+        </svg>
+      {/if}
     </button>
   {/each}
 </fieldset>

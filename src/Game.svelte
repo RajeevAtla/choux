@@ -5,6 +5,7 @@ import Board from './Board.svelte';
 import type { EngineRequest, EngineResponse } from './engineMessages';
 import { coordinate, playCoordinate, result } from './position';
 import { maxGamePlies, submissionUrl } from './submission';
+import ThemePicker from './ThemePicker.svelte';
 
 let game = new Chess();
 let worker: Worker;
@@ -17,6 +18,18 @@ let side = $state<Color>('w');
 let pieces = $state(game.board().flat());
 let moves = $state<string[]>([]);
 let notation = $state<string[]>([]);
+let scoreSheet = $state<HTMLDivElement>();
+const turns = $derived(
+  Array.from({ length: Math.ceil(notation.length / 2) }, (_, index) => ({
+    number: index + 1,
+    white: notation[index * 2],
+    black: notation[index * 2 + 1],
+  })),
+);
+$effect(() => {
+  if (turns.length && scoreSheet)
+    scoreSheet.scrollTop = scoreSheet.scrollHeight;
+});
 let selected = $state<Square>();
 let legal = $state<Move[]>([]);
 let promotion = $state<Move[]>([]);
@@ -119,7 +132,10 @@ onMount(() => {
 <main class="game">
   <header>
     <h1>Choux</h1>
-    <a class="benchmark-link" href="?benchmark">Inference benchmark</a>
+    <div class="header-tools">
+      <a href="?benchmark">Inference benchmark</a>
+      <ThemePicker />
+    </div>
   </header>
   <div class="game-status" data-turn={playerTurn ? 'player' : 'choux'}>
     <p role="status">{status}</p>
@@ -153,13 +169,30 @@ onMount(() => {
       {/if}
       {#if notation.length}
         <h2 class="moves-heading">Moves</h2>
-        <p class="moves">
-          {notation
-            .map((move, index) =>
-              index % 2 ? move : `${1 + index / 2}. ${move}`,
-            )
-            .join(' ')}
-        </p>
+        <div class="moves" bind:this={scoreSheet}>
+          <table aria-label="Move history">
+            <thead>
+              <tr>
+                <th scope="col">No.</th>
+                <th scope="col">White</th>
+                <th scope="col">Black</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each turns as turn (turn.number)}
+                <tr>
+                  <th scope="row">{turn.number}</th>
+                  <td class:latest={turn.number * 2 - 1 === notation.length}>
+                    {turn.white}
+                  </td>
+                  <td class:latest={turn.number * 2 === notation.length}>
+                    {turn.black ?? '—'}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
       {/if}
       {#if outcome && moves.length <= maxGamePlies}
         <a

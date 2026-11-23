@@ -1,10 +1,7 @@
 :root {
-  color-scheme: light;
-  color: #18241d;
-  background: #f4f6ef;
-  font:
-    100% / 1.55 "Trebuchet MS",
-    sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  font: 100% / 1.55 var(--font-ui);
 }
 
 body {
@@ -15,17 +12,17 @@ main {
   margin: 3rem auto;
 }
 header {
-  border-top: 0.4rem solid #36734d;
+  border-top: 0.4rem solid var(--focus);
   padding: 1.5rem 0;
 }
 .wordmark {
   margin: 0;
-  color: #285b3a;
+  color: var(--accent);
   font-weight: bold;
 }
 h1,
 h2 {
-  font-family: Georgia, serif;
+  font-family: var(--font-display);
   line-height: 1.05;
 }
 h1 {
@@ -39,8 +36,8 @@ h2 {
 button {
   border: 0;
   padding: 0.7rem 1.15rem;
-  background: #244f36;
-  color: white;
+  background: var(--accent);
+  color: var(--on-accent);
   font: inherit;
   font-weight: bold;
   cursor: pointer;
@@ -50,16 +47,16 @@ button:disabled {
   cursor: wait;
 }
 button:focus-visible {
-  outline: 0.2rem solid #36734d;
+  outline: 0.2rem solid var(--focus);
   outline-offset: 0.2rem;
 }
 #status,
 .note {
-  color: #495b4e;
+  color: var(--muted);
 }
 article {
   padding: 1.25rem 0;
-  border-top: 1px solid #aab8aa;
+  border-top: 1px solid var(--rule);
 }
 table {
   width: 100%;
@@ -69,7 +66,7 @@ table {
 th,
 td {
   padding: 0.45rem 0.2rem;
-  border-bottom: 1px solid #ccd6cc;
+  border-bottom: 1px solid var(--row-rule);
   text-align: right;
 }
 th:first-child,
@@ -78,13 +75,11 @@ td:first-child {
 }
 
 .game {
-  --game-line: #a6b49f;
-  --game-ink: #1c3326;
-  --board-light: #eee6d1;
-  --board-dark: #96a789;
-  --board-highlight: #ddc57c;
-  width: min(61rem, calc(100% - 2rem));
-  color: var(--game-ink);
+  width: min(
+    61rem,
+    calc(100% - 2rem),
+    calc(max(24rem, 100svh - 10.25rem) + 19.5rem)
+  );
 }
 
 .game header {
@@ -93,8 +88,8 @@ td:first-child {
   align-items: baseline;
   justify-content: space-between;
   gap: 0.5rem 1rem;
-  border-top: 0.15rem solid var(--game-ink);
-  border-bottom: 1px solid var(--game-line);
+  border-top: 0.15rem solid var(--ink);
+  border-bottom: 1px solid var(--rule);
   padding: 0.75rem 0 1rem;
 }
 
@@ -127,17 +122,17 @@ td:first-child {
   width: 0.45rem;
   height: 0.45rem;
   margin: 0 0.55rem 0.12rem 0;
-  background: #36734d;
+  background: var(--focus);
   border-radius: 50%;
   content: "";
 }
 
 .game .side {
-  color: #495b4e;
+  color: var(--muted);
 }
 
 a {
-  color: #244f36;
+  color: var(--accent);
   text-underline-offset: 0.2em;
 }
 
@@ -158,17 +153,17 @@ a {
 }
 
 .game-controls button:hover {
-  background: #183a27;
+  background: var(--accent-hover);
 }
 
 .game-controls .actions button:last-child {
-  border: 1px solid #244f36;
-  color: var(--game-ink);
+  border: 1px solid var(--accent);
+  color: var(--ink);
   background: transparent;
 }
 
 .game-controls .actions button:last-child:hover {
-  background: #dfe8da;
+  background: var(--hover);
 }
 
 .actions,
@@ -180,20 +175,41 @@ a {
 
 .promotion {
   margin: 1rem 0;
-  border: 1px solid var(--game-line);
+  border: 1px solid var(--rule);
 }
 
 .game-controls .moves-heading {
   margin: 1.65rem 0 0;
   padding-top: 1rem;
-  border-top: 1px solid var(--game-line);
+  border-top: 1px solid var(--rule);
 }
 
 .moves {
-  max-height: 8rem;
+  max-height: 13rem;
   overflow: auto;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.75;
+}
+
+.moves :is(th, td) {
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+}
+
+.moves thead th {
+  position: sticky;
+  top: 0;
+  color: var(--muted);
+  background: var(--paper);
+  font-size: 0.875rem;
+}
+
+.moves tbody th {
+  width: 2.5rem;
+  color: var(--muted);
+}
+
+.moves .latest {
+  background: var(--hover);
+  font-weight: 700;
 }
 
 @media (width < 44rem) {
