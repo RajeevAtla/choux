@@ -2,5 +2,9 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "files": { "includes": ["**", "!**/dist", "!**/.playwright-cli"] },
   "formatter": { "indentStyle": "space" },
+  "html": {
+    "experimentalFullSupportEnabled": true,
+    "formatter": { "enabled": true }
+  },
   "javascript": { "formatter": { "quoteStyle": "single" } }
 }
