@@ -19,7 +19,9 @@ Use Wasm as the initial engine backend. On Chrome 158 on Windows (Core i9-13905H
 
 ## Training
 
-The 782-input, 64-hidden-unit model scores positions from the side-to-move's perspective. The first checkpoint improved mean absolute error from 0.516 to 0.331 on 707 held-out teacher-labeled positions. Run `bun run train` to train from scratch and `bun run evaluate public/model.f32 --matches` to compare against random and material-only opponents.
+The 782-input, 64-hidden-unit model scores positions from the side-to-move's perspective. The first checkpoint trained on 6,405 positions and reached a mean absolute error of 0.331 on 707 held-out positions, down from 0.516 with random weights. Run `bun run train` to train from scratch and `bun run evaluate public/model.f32 --matches` to compare against random and material-only opponents.
+
+In four games against each baseline, Choux won one game against random moves and lost one against material-only search. The other six games reached the 160-ply cap. Choux led in material in all three unfinished games against random play and trailed in all three against material-only search.
 
 After a completed game, **Share game for training** opens a prefilled public GitHub issue with the moves, side, result, and checkpoint SHA-256. Players decide whether to submit the issue on GitHub.
 

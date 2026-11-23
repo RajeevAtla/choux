@@ -151,8 +151,8 @@ onMount(() => {
           {/each}
         </fieldset>
       {/if}
-      <h2 class="moves-heading">Moves</h2>
       {#if notation.length}
+        <h2 class="moves-heading">Moves</h2>
         <p class="moves">
           {notation
             .map((move, index) =>
@@ -160,8 +160,6 @@ onMount(() => {
             )
             .join(' ')}
         </p>
-      {:else}
-        <p class="note moves-empty">Moves appear here as you play.</p>
       {/if}
       {#if outcome && moves.length <= maxGamePlies}
         <a
