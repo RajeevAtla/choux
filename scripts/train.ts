@@ -72,8 +72,12 @@ async function serialize(weights: Weights) {
 if (!(await init('wasm')).includes('wasm'))
   throw new Error('Wasm initialization failed.');
 defaultDevice('wasm');
-const [output = 'public/model.f32', dataset = datasetPath, incumbent = output] =
-  Bun.argv.slice(2);
+const [
+  output = 'public/model.f32',
+  dataset = datasetPath,
+  incumbent = output,
+  selfPlayDataset,
+] = Bun.argv.slice(2);
 const randomize = random(48902);
 let weights = tensors(
   Float32Array.from({ length: WEIGHT_COUNT }, () => (randomize() - 0.5) * 0.16),
@@ -85,7 +89,20 @@ const bestPublished = (await incumbentFile.exists())
   ? await error(tensors(unpack(await incumbentFile.arrayBuffer())), validation)
   : Infinity;
 const games = (await readGames(dataset)).slice(-256);
-const training = generate(144, 12459).concat(fromGames(games));
+const uniqueGames = new Map<string, { moves: string[] }>(
+  games.map((game) => [game.moves.join(' '), game]),
+);
+if (selfPlayDataset) {
+  const selfPlay = await readGames<{ moves: string[] }>(selfPlayDataset);
+  if (!selfPlay.length)
+    throw new Error(`No self-play games found at ${selfPlayDataset}.`);
+  const existing = uniqueGames.size;
+  for (const game of selfPlay) uniqueGames.set(game.moves.join(' '), game);
+  console.log(`Added ${uniqueGames.size - existing} distinct self-play games.`);
+}
+const training = generate(144, 12459).concat(
+  fromGames([...uniqueGames.values()]),
+);
 console.log(
   `Training on ${training.length} positions, validating on ${validation.length}. Random MAE ${baseline.toFixed(4)}.`,
 );

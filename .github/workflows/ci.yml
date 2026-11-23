@@ -20,8 +20,13 @@ permissions:
   contents: read
 
 jobs:
+  self-play:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.retrain)
+    uses: ./.github/workflows/self-play.yml
+
   retrain:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.retrain || github.event_name == 'push')
+    needs: self-play
+    if: ${{ !cancelled() && (needs.self-play.result == 'success' || needs.self-play.result == 'skipped') && github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.retrain || github.event_name == 'push') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -51,8 +56,20 @@ jobs:
         if: steps.changes.outputs.run == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - run: bun run train "$RUNNER_TEMP/candidate.f32" data/games.jsonl public/model.f32
+      - uses: actions/download-artifact@v8
+        if: needs.self-play.result == 'success'
+        with:
+          name: choux-self-play
+          path: self-play
+      - run: |
+          args=()
+          if [[ "$SELF_PLAY" == success ]]; then
+            args+=(self-play/games.jsonl)
+          fi
+          bun run train "$RUNNER_TEMP/candidate.f32" data/games.jsonl public/model.f32 "${args[@]}"
         if: steps.changes.outputs.run == 'true'
+        env:
+          SELF_PLAY: ${{ needs.self-play.result }}
       - name: Verify candidate and persist accepted data
         id: persist
         if: steps.changes.outputs.run == 'true'
@@ -79,8 +96,8 @@ jobs:
           overwrite: true
 
   check:
-    needs: retrain
-    if: ${{ !cancelled() && (needs.retrain.result == 'skipped' || needs.retrain.result == 'success') }}
+    needs: [self-play, retrain]
+    if: ${{ !cancelled() && (needs.self-play.result == 'skipped' || needs.self-play.result == 'success') && (needs.retrain.result == 'skipped' || needs.retrain.result == 'success') }}
     runs-on: ubuntu-latest
     outputs:
       revision: ${{ steps.source.outputs.revision }}

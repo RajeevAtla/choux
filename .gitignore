@@ -2,3 +2,4 @@ node_modules/
 dist/
 .playwright-cli/
 /public/benchmark-weights.f32
+/self-play/

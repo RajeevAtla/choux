@@ -21,14 +21,41 @@ Use Wasm as the initial engine backend. On Chrome 158 on Windows (Core i9-13905H
 
 `bun run biome:check` checks formatting and lint, `bun run biome:format` applies formatting, and `bun run check` runs Svelte and TypeScript diagnostics. `bun run build` produces `dist/` with relative asset paths for GitHub Pages. Repository Pages settings should use **GitHub Actions** as the publishing source.
 
+## Network
+
+Choux is a fully connected JAX-JS value network with shape **782 → 64 → 1**. For a batch of `B` positions it takes a `B × 782` Float32 tensor, applies a 64-unit ReLU layer, and returns a `B × 1` tensor of linear scores from the side-to-move's perspective. The chess search uses these scores to rank legal moves.
+
+Each input row contains 768 piece-square flags (12 planes of 64 squares arranged by side to move and opponent), four castling flags, eight en passant file flags, the half-move clock clamped at 100 and divided by 100, and a flag for Black to move. The encoder flips the board ranks for Black so pieces on each side have a consistent orientation.
+
+| Tensor         | Shape      | Trainable parameters |
+| -------------- | ---------- | -------------------: |
+| Hidden weights | `782 × 64` |               50,048 |
+| Hidden bias    | `64`       |                   64 |
+| Output weights | `64 × 1`   |                   64 |
+| Output bias    | `1`        |                    1 |
+| **Total**      |            |           **50,177** |
+
+[`public/model.f32`](public/model.f32) stores those four tensors in order as raw little-endian Float32 values. The checkpoint is **200,708 bytes (about 196 KiB)**.
+
 ## Training
 
-The 782-input, 64-hidden-unit model scores positions from the side-to-move's perspective. The first checkpoint trained on 6,405 positions and reached a mean absolute error of 0.331 on 707 held-out positions, down from 0.516 with random weights. Run `bun run train` to train from scratch and `bun run evaluate public/model.f32 --matches` to compare against random and material-only opponents.
+The first checkpoint trained on 6,405 positions and reached a mean absolute error of 0.331 on 707 held-out positions, down from 0.516 with random weights. Run `bun run train` to train from scratch and `bun run evaluate public/model.f32 --matches` to compare against random and material-only opponents.
 
 In four games against each baseline, Choux won one game against random moves and lost one against material-only search. The other six games reached the 160-ply cap. Choux led in material in all three unfinished games against random play and trailed in all three against material-only search.
 
 After a completed game, **Share game for training** opens a prefilled public GitHub issue with the moves, side, result, and checkpoint SHA-256. Players decide whether to submit the issue on GitHub.
 
-The Actions workflow runs daily at 04:23 UTC. To run it on demand, choose **Check code** in the Actions tab and select **retrain** when dispatching it. The runner replays submitted games to verify legality and the result, deduplicates by move sequence, and records accepted games in `data/games.jsonl`. Training samples positions from recent submissions and labels them with the same teacher as the generated games.
+The Actions workflow runs daily at 04:23 UTC. To run it on demand, choose **Check code** in the Actions tab and select **retrain** when dispatching it. The runner replays submitted games to verify legality and the result, deduplicates by move sequence, and records accepted games in `data/games.jsonl`. Training samples positions from recent submissions and that run's self-play games, and labels them with the same teacher as the generated games.
 
 The workflow checks the candidate against a fixed holdout set and runs a chess smoke test. It retains the incumbent if the candidate regresses. The build receives the selected checkpoint as an Actions artifact and deploys it with the static app. Git stores the accepted dataset and checkpoint so subsequent builds can reuse them.
+
+### Self-play dataset
+
+The daily run generates 16 games using the current checkpoint for both sides, with six seeded random opening plies and a cap of 96 plies per game. It uploads `games.jsonl` as the **choux-self-play** artifact and passes it to the trainer in the same run. Choose **Self-play dataset → Run workflow** to generate a downloadable artifact on demand. Each row records the move sequence, checkpoint SHA-256, seed, and result. A `null` result means the game reached the cap. Those positions can still receive teacher scores.
+
+To generate a smaller batch locally and use it for training, run:
+
+```sh
+bun run self-play self-play/games.jsonl public/model.f32 4 80 example
+bun run train self-play/candidate.f32 data/games.jsonl public/model.f32 self-play/games.jsonl
+```

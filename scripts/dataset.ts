@@ -4,7 +4,9 @@ import { maxGamePlies, type SubmittedGame } from '../src/submission';
 
 export const datasetPath = 'data/games.jsonl';
 
-export async function readGames(path = datasetPath): Promise<SubmittedGame[]> {
+export async function readGames<T extends { moves: string[] } = SubmittedGame>(
+  path = datasetPath,
+): Promise<T[]> {
   const file = Bun.file(path);
   if (!(await file.exists())) return [];
   return (await file.text())

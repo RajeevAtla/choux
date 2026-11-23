@@ -1,0 +1,31 @@
+name: Self-play dataset
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/self-play.yml
+      - scripts/self-play.ts
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run self-play self-play/games.jsonl public/model.f32 16 96 "$GITHUB_RUN_ID"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: choux-self-play
+          path: self-play/games.jsonl
+          if-no-files-found: error
+          overwrite: true
