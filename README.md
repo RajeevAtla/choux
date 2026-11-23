@@ -10,7 +10,7 @@ Choux uses Azo Sans and Chassi L by [R-Typography](https://www.r-typography.com/
 
 ## Inference benchmark
 
-Open **Inference benchmark** from the game and choose **Run benchmark**. The worker loads a seeded dummy checkpoint and compares JAX-JS Wasm and WebGPU. The warm numbers cover browser round-trip inference on synthetic features. They exclude chess move generation and search.
+Open **Engine & model** below the game and choose **Run benchmark**. The worker loads a seeded dummy checkpoint and compares JAX-JS Wasm and WebGPU. The warm numbers cover browser round-trip inference on synthetic features. They exclude chess move generation and search.
 
 Use Wasm as the initial engine backend. On Chrome 158 on Windows (Core i9-13905H, Intel Gen12LP WebGPU adapter), Wasm had lower startup and warm inference latency for both batch sizes. The production build was served under `/choux/` with cross-origin isolation disabled, matching the deployment path shape and header requirements.
 
@@ -41,6 +41,8 @@ Each input row contains 768 piece-square flags (12 planes of 64 squares arranged
 
 The first checkpoint trained on 6,405 positions and reached a mean absolute error of 0.331 on 707 held-out positions, down from 0.516 with random weights. Run `bun run train` to train from scratch and `bun run evaluate public/model.f32 --matches` to compare against random and material-only opponents.
 
+The [teacher](scripts/teacher.ts) tries all legal moves one ply ahead and labels the position with its best score from the current player's point of view. Static scores use material (pawn 100, knight 320, bishop 330, rook 500, queen 900), placement, and check. A move that checkmates scores 1,200 and a move that draws scores zero. Dividing by 1,200 and clamping to `[-1, 1]` gives the network's training target. Game outcomes are recorded separately from these labels.
+
 In four games against each baseline, Choux won one game against random moves and lost one against material-only search. The other six games reached the 160-ply cap. Choux led in material in all three unfinished games against random play and trailed in all three against material-only search.
 
 After a completed game, **Share game for training** opens a prefilled public GitHub issue with the moves, side, result, and checkpoint SHA-256. Players decide whether to submit the issue on GitHub.
@@ -48,6 +50,12 @@ After a completed game, **Share game for training** opens a prefilled public Git
 Training runs every six hours at 00:43, 06:43, 12:43, and 18:43 UTC. To run it on demand, choose **Check code** in the Actions tab and select **retrain**. The runner replays submitted games to verify legality and the result, deduplicates by move sequence, and records accepted games in `data/games.jsonl`. Training samples positions from recent submissions and the latest six successful hourly self-play runs, and labels them with the same teacher as the generated games.
 
 The workflow checks the candidate against a fixed holdout set and runs a chess smoke test. It retains the incumbent if the candidate regresses. The build receives the selected checkpoint as an Actions artifact and deploys it with the static app. Git stores the accepted dataset and checkpoint so subsequent builds can reuse them.
+
+### Stockfish comparison
+
+Every retrain compares the candidate and incumbent against [Stockfish 18](https://github.com/official-stockfish/Stockfish/releases/tag/sf_18) on 22 fixed positions. At 20,000 nodes per search, Stockfish estimates win, draw, and loss probabilities for its best move and for each chosen move. The benchmark reports the average expected-score points lost (`win + draw / 2`) and agreement with Stockfish's best move. Lower loss is better. The promotion gate still uses held-out teacher error and a chess smoke test.
+
+The `stockfish-benchmark` Actions artifact contains the per-position report and validation metrics. The compact `public/model-history.jsonl` file records each run's summary, including rejected candidates, and feeds the **Model history** table in **Engine & model**.
 
 ### Self-play dataset
 

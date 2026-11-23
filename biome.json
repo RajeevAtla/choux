@@ -1,6 +1,8 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "files": { "includes": ["**", "!**/dist", "!**/.playwright-cli"] },
+  "files": {
+    "includes": ["**", "!**/dist", "!**/.playwright-cli", "!self-play"]
+  },
   "formatter": { "indentStyle": "space" },
   "html": {
     "experimentalFullSupportEnabled": true,
