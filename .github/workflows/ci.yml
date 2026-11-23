@@ -4,11 +4,11 @@ on:
   push:
   pull_request:
   schedule:
-    - cron: "23 4 * * *"
+    - cron: "43 */6 * * *"
   workflow_dispatch:
     inputs:
       retrain:
-        description: Collect submitted games and retrain before deployment
+        description: Collect submitted and self-play games and retrain before deployment
         type: boolean
         default: false
 
@@ -20,59 +20,48 @@ permissions:
   contents: read
 
 jobs:
-  self-play:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.retrain)
-    uses: ./.github/workflows/self-play.yml
-
   retrain:
-    needs: self-play
-    if: ${{ !cancelled() && (needs.self-play.result == 'success' || needs.self-play.result == 'skipped') && github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.retrain || github.event_name == 'push') }}
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.retrain)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
+      actions: read
       contents: write
       issues: read
     outputs:
       revision: ${{ steps.persist.outputs.revision }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - name: Detect changes to the training pipeline
-        id: changes
-        env:
-          BEFORE: ${{ github.event.before }}
-        run: |
-          if [[ "$GITHUB_EVENT_NAME" == push ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null && git diff --quiet "$BEFORE" HEAD -- .github/workflows/ci.yml bun.lock scripts/collect.ts scripts/dataset.ts scripts/examples.ts scripts/teacher.ts scripts/train.ts src/model.ts src/modelShape.ts src/position.ts src/checkpoint.ts src/submission.ts; then
-            echo 'run=false' >> "$GITHUB_OUTPUT"
-          else
-            echo 'run=true' >> "$GITHUB_OUTPUT"
-          fi
       - uses: oven-sh/setup-bun@v2
-        if: steps.changes.outputs.run == 'true'
       - run: bun install --frozen-lockfile
-        if: steps.changes.outputs.run == 'true'
       - run: bun run collect
-        if: steps.changes.outputs.run == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - uses: actions/download-artifact@v8
-        if: needs.self-play.result == 'success'
-        with:
-          name: choux-self-play
-          path: self-play
+      - name: Collect hourly self-play batches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow self-play.yml \
+            --branch main --event schedule --status success --limit 6 --json databaseId --jq '.[].databaseId')
+          if [[ -z "$runs" ]]; then
+            echo "No successful hourly self-play runs yet."
+            exit 0
+          fi
+          mkdir -p self-play
+          : > self-play/games.jsonl
+          for run_id in $runs; do
+            batch="$RUNNER_TEMP/choux-self-play/$run_id"
+            gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name choux-self-play --dir "$batch"
+            cat "$batch/games.jsonl" >> self-play/games.jsonl
+          done
       - run: |
           args=()
-          if [[ "$SELF_PLAY" == success ]]; then
+          if [[ -s self-play/games.jsonl ]]; then
             args+=(self-play/games.jsonl)
           fi
           bun run train "$RUNNER_TEMP/candidate.f32" data/games.jsonl public/model.f32 "${args[@]}"
-        if: steps.changes.outputs.run == 'true'
-        env:
-          SELF_PLAY: ${{ needs.self-play.result }}
       - name: Verify candidate and persist accepted data
         id: persist
-        if: steps.changes.outputs.run == 'true'
         run: |
           if [[ -f "$RUNNER_TEMP/candidate.f32" ]]; then
             bun run evaluate "$RUNNER_TEMP/candidate.f32"
@@ -88,7 +77,6 @@ jobs:
           fi
           echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
-        if: steps.changes.outputs.run == 'true'
         with:
           name: choux-checkpoint
           path: public/model.f32
@@ -96,8 +84,8 @@ jobs:
           overwrite: true
 
   check:
-    needs: [self-play, retrain]
-    if: ${{ !cancelled() && (needs.self-play.result == 'skipped' || needs.self-play.result == 'success') && (needs.retrain.result == 'skipped' || needs.retrain.result == 'success') }}
+    needs: retrain
+    if: ${{ !cancelled() && (needs.retrain.result == 'skipped' || needs.retrain.result == 'success') }}
     runs-on: ubuntu-latest
     outputs:
       revision: ${{ steps.source.outputs.revision }}

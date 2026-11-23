@@ -45,13 +45,13 @@ In four games against each baseline, Choux won one game against random moves and
 
 After a completed game, **Share game for training** opens a prefilled public GitHub issue with the moves, side, result, and checkpoint SHA-256. Players decide whether to submit the issue on GitHub.
 
-The Actions workflow runs daily at 04:23 UTC. To run it on demand, choose **Check code** in the Actions tab and select **retrain** when dispatching it. The runner replays submitted games to verify legality and the result, deduplicates by move sequence, and records accepted games in `data/games.jsonl`. Training samples positions from recent submissions and that run's self-play games, and labels them with the same teacher as the generated games.
+Training runs every six hours at 00:43, 06:43, 12:43, and 18:43 UTC. To run it on demand, choose **Check code** in the Actions tab and select **retrain**. The runner replays submitted games to verify legality and the result, deduplicates by move sequence, and records accepted games in `data/games.jsonl`. Training samples positions from recent submissions and the latest six successful hourly self-play runs, and labels them with the same teacher as the generated games.
 
 The workflow checks the candidate against a fixed holdout set and runs a chess smoke test. It retains the incumbent if the candidate regresses. The build receives the selected checkpoint as an Actions artifact and deploys it with the static app. Git stores the accepted dataset and checkpoint so subsequent builds can reuse them.
 
 ### Self-play dataset
 
-The daily run generates 16 games using the current checkpoint for both sides, with six seeded random opening plies and a cap of 96 plies per game. It uploads `games.jsonl` as the **choux-self-play** artifact and passes it to the trainer in the same run. Choose **Self-play dataset → Run workflow** to generate a downloadable artifact on demand. Each row records the move sequence, checkpoint SHA-256, seed, and result. A `null` result means the game reached the cap. Those positions can still receive teacher scores.
+At 13 minutes past each hour, **Self-play dataset** generates 16 games using the current checkpoint for both sides, with six seeded random opening plies and a cap of 96 plies per game. Each run uploads `games.jsonl` as the **choux-self-play** artifact. Choose **Self-play dataset → Run workflow** to generate a downloadable artifact on demand. Each row records the move sequence, checkpoint SHA-256, seed, and result. A `null` result means the game reached the cap. Those positions can still receive teacher scores.
 
 To generate a smaller batch locally and use it for training, run:
 

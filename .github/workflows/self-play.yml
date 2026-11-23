@@ -1,13 +1,9 @@
 name: Self-play dataset
 
 on:
-  workflow_call:
+  schedule:
+    - cron: "13 * * * *"
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/self-play.yml
-      - scripts/self-play.ts
 
 permissions:
   contents: read
