@@ -3,9 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --bun vite",
+    "fixture": "bun scripts/generate-fixture.ts",
+    "dev": "bun run fixture && bun --bun vite",
     "check": "tsc --noEmit",
-    "build": "bun --bun vite build",
+    "build": "bun run fixture && bun --bun vite build",
     "preview": "bun --bun vite preview",
     "biome:check": "biome check .",
     "biome:format": "biome format --write ."
