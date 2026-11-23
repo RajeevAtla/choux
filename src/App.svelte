@@ -37,6 +37,7 @@ async function run() {
 <main>
   <header>
     <p class="wordmark">Choux</p>
+    <a href="./">Play chess</a>
     <h1>Inference benchmark</h1>
     <p>
       Compare Wasm and WebGPU using a dummy chess model in a browser worker.

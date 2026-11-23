@@ -76,3 +76,140 @@ th:first-child,
 td:first-child {
   text-align: left;
 }
+
+.game {
+  --game-line: #a6b49f;
+  --game-ink: #1c3326;
+  --board-light: #eee6d1;
+  --board-dark: #96a789;
+  --board-highlight: #ddc57c;
+  width: min(61rem, calc(100% - 2rem));
+  color: var(--game-ink);
+}
+
+.game header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  border-top: 0.15rem solid var(--game-ink);
+  border-bottom: 1px solid var(--game-line);
+  padding: 0.75rem 0 1rem;
+}
+
+.game h1 {
+  margin: 0;
+  font-size: 3.55rem;
+  font-weight: 400;
+  letter-spacing: -0.035em;
+}
+
+.game-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 1rem;
+  padding: 0.8rem 0;
+}
+
+.game-status p {
+  margin: 0;
+}
+
+.game-status [role="status"] {
+  font-weight: bold;
+}
+
+.game-status[data-turn="player"] [role="status"]::before {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin: 0 0.55rem 0.12rem 0;
+  background: #36734d;
+  border-radius: 50%;
+  content: "";
+}
+
+.game .side {
+  color: #495b4e;
+}
+
+a {
+  color: #244f36;
+  text-underline-offset: 0.2em;
+}
+
+.game-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(13rem, 17rem);
+  gap: clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.game-controls h2 {
+  font-size: 1.35rem;
+  margin-bottom: 0.9rem;
+}
+
+.game-controls button {
+  min-height: 2.75rem;
+  padding: 0.45rem 0.7rem;
+}
+
+.game-controls button:hover {
+  background: #183a27;
+}
+
+.game-controls .actions button:last-child {
+  border: 1px solid #244f36;
+  color: var(--game-ink);
+  background: transparent;
+}
+
+.game-controls .actions button:last-child:hover {
+  background: #dfe8da;
+}
+
+.actions,
+.promotion {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.promotion {
+  margin: 1rem 0;
+  border: 1px solid var(--game-line);
+}
+
+.game-controls .moves-heading {
+  margin: 1.65rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--game-line);
+}
+
+.moves {
+  max-height: 8rem;
+  overflow: auto;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.75;
+}
+
+.moves-empty {
+  margin: 0.65rem 0;
+}
+
+@media (width < 44rem) {
+  .game {
+    margin: 1.15rem auto 2rem;
+  }
+
+  .game h1 {
+    font-size: 2.75rem;
+  }
+
+  .game-layout {
+    grid-template-columns: 1fr;
+  }
+}
