@@ -64,9 +64,20 @@ function updateTurn() {
   }
 }
 
+const saveKey = 'choux-game-v1';
+
+function saveGame() {
+  try {
+    localStorage.setItem(saveKey, JSON.stringify({ side, moves }));
+  } catch {
+    // Play remains available when browser storage is unavailable.
+  }
+}
+
 function play(move: string) {
   const played = playCoordinate(game, move);
   moves = [...moves, move];
+  saveGame();
   notation = [...notation, played.san];
   pieces = game.board().flat();
   selected = undefined;
@@ -95,16 +106,21 @@ function review(ply: number | null) {
   promotion = [];
 }
 
-function start(nextSide: Color) {
+function start(
+  nextSide: Color,
+  previous = new Chess(),
+  previousMoves: string[] = [],
+) {
   worker?.terminate();
   worker = new Worker(new URL('./engine.worker.ts', import.meta.url), {
     type: 'module',
   });
   side = nextSide;
-  game = new Chess();
+  game = previous;
   pieces = game.board().flat();
-  moves = [];
-  notation = [];
+  moves = previousMoves;
+  notation = game.history();
+  saveGame();
   reviewPly = null;
   legal = [];
   promotion = [];
@@ -132,7 +148,22 @@ function start(nextSide: Color) {
 }
 
 onMount(() => {
-  start('w');
+  let saved: { side: Color; game: Chess; moves: string[] } | undefined;
+  try {
+    const value = JSON.parse(localStorage.getItem(saveKey) ?? 'null');
+    if (
+      (value?.side === 'w' || value?.side === 'b') &&
+      Array.isArray(value.moves)
+    ) {
+      const restored = new Chess();
+      replay(restored, value.moves);
+      saved = { side: value.side, game: restored, moves: value.moves };
+    }
+  } catch {
+    // Discard an unreadable or illegal saved game.
+  }
+  if (saved) start(saved.side, saved.game, saved.moves);
+  else start('w');
   return () => worker.terminate();
 });
 </script>
