@@ -130,18 +130,34 @@ for (let epoch = 0; epoch < 12; epoch++) {
   }
 }
 
-if (!checkpoint || best >= baseline * 0.95)
-  throw new Error('Candidate missed the validation threshold.');
+if (!checkpoint) throw new Error('Training produced no finite checkpoint.');
 const roundTrip = await error(tensors(unpack(checkpoint)), validation);
 if (Math.abs(roundTrip - best) > 1e-6)
   throw new Error('Exported checkpoint failed validation.');
-if (best > bestPublished + 0.000001) {
-  console.log(
-    `Candidate MAE ${best} regressed from ${bestPublished}. Retaining the published checkpoint.`,
-  );
-} else {
+const reportPath = Bun.env.CHOUX_TRAINING_REPORT;
+const beatsRandom = best < baseline * 0.95;
+const eligible = beatsRandom && best <= bestPublished + 0.000001;
+if (!beatsRandom && !reportPath)
+  throw new Error('Candidate missed the validation threshold.');
+if (eligible || reportPath) {
   await Bun.write(output, checkpoint);
   console.log(`Saved ${output} with validation MAE ${roundTrip.toFixed(4)}.`);
+}
+if (!eligible) {
+  console.log(
+    `Candidate MAE ${best} did not pass the promotion gate. Retaining the published checkpoint.`,
+  );
+}
+if (reportPath) {
+  await Bun.write(
+    reportPath,
+    JSON.stringify({
+      eligible,
+      candidateMae: roundTrip,
+      incumbentMae: Number.isFinite(bestPublished) ? bestPublished : null,
+      trainingPositions: training.length,
+    }),
+  );
 }
 
 // The Wasm thread pool can keep Bun alive after the checkpoint has been written.

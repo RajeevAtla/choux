@@ -60,19 +60,43 @@ jobs:
             args+=(self-play/games.jsonl)
           fi
           bun run train "$RUNNER_TEMP/candidate.f32" data/games.jsonl public/model.f32 "${args[@]}"
+        env:
+          CHOUX_TRAINING_REPORT: ${{ runner.temp }}/training-report.json
+      - name: Install Stockfish 18
+        run: |
+          archive="$RUNNER_TEMP/stockfish.tar"
+          curl --fail --location --retry 3 --silent --show-error \
+            https://github.com/official-stockfish/Stockfish/releases/download/sf_18/stockfish-ubuntu-x86-64-avx2.tar \
+            --output "$archive"
+          printf '536c0c2c0cf06450df0bfb5e876ef0d3119950703a8f143627f990c7b5417964  %s\n' "$archive" | sha256sum --check --status
+          tar -xf "$archive" -C "$RUNNER_TEMP"
+      - name: Compare both models with Stockfish
+        env:
+          STOCKFISH: ${{ runner.temp }}/stockfish/stockfish-ubuntu-x86-64-avx2
+        run: bun run benchmark:strength "$RUNNER_TEMP/candidate.f32" public/model.f32 "$RUNNER_TEMP/stockfish-report.json"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: stockfish-benchmark-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/stockfish-report.json
+            ${{ runner.temp }}/training-report.json
+          if-no-files-found: error
       - name: Verify candidate and persist accepted data
         id: persist
         run: |
-          if [[ -f "$RUNNER_TEMP/candidate.f32" ]]; then
+          promoted=false
+          if jq -e '.eligible' "$RUNNER_TEMP/training-report.json" >/dev/null && ! cmp -s "$RUNNER_TEMP/candidate.f32" public/model.f32; then
             bun run evaluate "$RUNNER_TEMP/candidate.f32"
             mv "$RUNNER_TEMP/candidate.f32" public/model.f32
+            promoted=true
           fi
+          bun scripts/record-model-history.ts "$RUNNER_TEMP/training-report.json" "$RUNNER_TEMP/stockfish-report.json" "$promoted"
           if [[ -f data/games.jsonl ]]; then
             git add data/games.jsonl
           fi
-          git add public/model.f32
+          git add public/model.f32 public/model-history.jsonl
           if ! git diff --cached --quiet; then
-            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Update Choux training data and checkpoint'
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Record Choux training run'
             git push origin HEAD:main
           fi
           echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
