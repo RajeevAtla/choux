@@ -11,6 +11,7 @@ let {
   lastMove,
   interactive,
   onselect,
+  oncancel,
 }: {
   pieces: (Piece | null)[];
   side: Color;
@@ -19,6 +20,7 @@ let {
   lastMove?: string;
   interactive: boolean;
   onselect: (square: Square) => void;
+  oncancel: () => void;
 } = $props();
 
 const names = {
@@ -40,6 +42,10 @@ let focused = $state<Square>();
 const entry = $derived(focused ?? (side === 'w' ? 'e2' : 'e7'));
 
 function navigate(event: KeyboardEvent, index: number) {
+  if (event.key === 'Escape') {
+    oncancel();
+    return;
+  }
   const row = Math.floor(index / 8);
   const file = index % 8;
   const steps: Record<string, number | undefined> = {
@@ -58,21 +64,26 @@ function navigate(event: KeyboardEvent, index: number) {
 <fieldset
   class="board"
   aria-label={`Chessboard, ${side === 'w' ? 'White' : 'Black'} at the bottom`}
+  aria-describedby="board-keys"
   bind:this={board}
 >
   {#each squares as { index, square }, display (square)}
     {@const piece = pieces[index]}
+    {@const target = destinations.includes(square)}
+    {@const label = piece
+      ? `${square}, ${piece.color === 'w' ? 'White' : 'Black'} ${names[piece.type]}`
+      : square}
     <button
       type="button"
       class="square"
       class:dark={(index + Math.floor(index / 8)) % 2 !== 0}
-      class:target={destinations.includes(square)}
-      class:capture={!!piece && destinations.includes(square)}
+      class:target
+      class:capture={!!piece && target}
       class:last={lastMove?.slice(0, 2) === square ||
         lastMove?.slice(2, 4) === square}
-      aria-label={piece
-        ? `${square}, ${piece.color === 'w' ? 'White' : 'Black'} ${names[piece.type]}`
-        : square}
+      aria-label={target
+        ? `${label}, ${piece ? 'legal capture' : 'legal destination'}`
+        : label}
       aria-pressed={selected === square}
       aria-disabled={!interactive}
       tabindex={entry === square ? 0 : -1}

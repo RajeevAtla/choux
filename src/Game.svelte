@@ -2,8 +2,11 @@
 import { Chess, type Color, type Move, type Square } from 'chess.js';
 import { onMount } from 'svelte';
 import Board from './Board.svelte';
+import EngineTools from './EngineTools.svelte';
 import type { EngineRequest, EngineResponse } from './engineMessages';
-import { coordinate, playCoordinate, result } from './position';
+import MoveHistory from './MoveHistory.svelte';
+import NewGame from './NewGame.svelte';
+import { coordinate, playCoordinate, replay, result } from './position';
 import { maxGamePlies, submissionUrl } from './submission';
 import ThemePicker from './ThemePicker.svelte';
 
@@ -18,17 +21,13 @@ let side = $state<Color>('w');
 let pieces = $state(game.board().flat());
 let moves = $state<string[]>([]);
 let notation = $state<string[]>([]);
-let scoreSheet = $state<HTMLDivElement>();
-const turns = $derived(
-  Array.from({ length: Math.ceil(notation.length / 2) }, (_, index) => ({
-    number: index + 1,
-    white: notation[index * 2],
-    black: notation[index * 2 + 1],
-  })),
-);
-$effect(() => {
-  if (turns.length && scoreSheet)
-    scoreSheet.scrollTop = scoreSheet.scrollHeight;
+let reviewPly = $state<number | null>(null);
+const shownPly = $derived(reviewPly ?? moves.length);
+const displayedPieces = $derived.by(() => {
+  if (reviewPly === null) return pieces;
+  const snapshot = new Chess();
+  replay(snapshot, moves.slice(0, reviewPly));
+  return snapshot.board().flat();
 });
 let selected = $state<Square>();
 let legal = $state<Move[]>([]);
@@ -37,6 +36,7 @@ let model = $state('');
 let status = $state('Loading model…');
 let outcome = $state<ReturnType<typeof result>>();
 let playerTurn = $state(false);
+let engineOpen = $state(false);
 const promotionNames: Record<string, string> = {
   q: 'Queen',
   r: 'Rook',
@@ -76,7 +76,7 @@ function play(move: string) {
 }
 
 function select(square: Square) {
-  if (!playerTurn || promotion.length) return;
+  if (!playerTurn || promotion.length || reviewPly !== null) return;
   const choices = legal.filter((move) => move.to === square);
   if (choices.length > 1) {
     promotion = choices;
@@ -86,6 +86,13 @@ function select(square: Square) {
     legal = square === selected ? [] : game.moves({ square, verbose: true });
     selected = legal.length ? square : undefined;
   }
+}
+
+function review(ply: number | null) {
+  reviewPly = ply;
+  selected = undefined;
+  legal = [];
+  promotion = [];
 }
 
 function start(nextSide: Color) {
@@ -98,6 +105,7 @@ function start(nextSide: Color) {
   pieces = game.board().flat();
   moves = [];
   notation = [];
+  reviewPly = null;
   legal = [];
   promotion = [];
   selected = undefined;
@@ -132,31 +140,48 @@ onMount(() => {
 <main class="game">
   <header>
     <h1>Choux</h1>
-    <div class="header-tools">
-      <a href="?benchmark">Inference benchmark</a>
-      <ThemePicker />
-    </div>
+    <ThemePicker />
   </header>
-  <div class="game-status" data-turn={playerTurn ? 'player' : 'choux'}>
-    <p role="status">{status}</p>
+  <div
+    class="game-status"
+    data-turn={playerTurn && reviewPly === null ? 'player' : 'choux'}
+  >
+    <p role="status">
+      {#if reviewPly !== null}
+        Reviewing move {Math.ceil(reviewPly / 2)} · {notation[reviewPly - 1]}
+      {:else if promotion.length}
+        Choose a promotion piece.
+      {:else}
+        {#if notation.length}
+          <span class="sr-only">Last move {notation.at(-1)}. </span>
+        {/if}
+        {status}
+      {/if}
+    </p>
     <p class="side">Playing {side === 'w' ? 'White' : 'Black'}</p>
   </div>
   <div class="game-layout">
-    <Board
-      {pieces}
-      {side}
-      {selected}
-      destinations={legal.map((move) => move.to)}
-      lastMove={moves.at(-1)}
-      interactive={playerTurn && !promotion.length}
-      onselect={select}
-    />
+    <div class="board-area">
+      <Board
+        pieces={displayedPieces}
+        {side}
+        {selected}
+        destinations={legal.map((move) => move.to)}
+        lastMove={moves[shownPly - 1]}
+        interactive={playerTurn && !promotion.length && reviewPly === null}
+        onselect={select}
+        oncancel={() => review(null)}
+      />
+      <p id="board-keys" class="keyboard-hint note">
+        Arrow keys to focus, Enter to select or move, Escape to clear.
+      </p>
+      <p class="sr-only" aria-live="polite">
+        {selected
+          ? `Selected ${selected}. Legal destinations: ${[...new Set(legal.map((move) => move.to))].join(', ')}.`
+          : ''}
+      </p>
+    </div>
     <section aria-label="Game controls" class="game-controls">
-      <h2>New game</h2>
-      <div class="actions">
-        <button type="button" onclick={() => start('w')}>Play White</button>
-        <button type="button" onclick={() => start('b')}>Play Black</button>
-      </div>
       {#if promotion.length}
         <fieldset class="promotion">
           <legend>Promote pawn</legend>
@@ -168,32 +193,9 @@ onMount(() => {
         </fieldset>
       {/if}
       {#if notation.length}
-        <h2 class="moves-heading">Moves</h2>
-        <div class="moves" bind:this={scoreSheet}>
-          <table aria-label="Move history">
-            <thead>
-              <tr>
-                <th scope="col">No.</th>
-                <th scope="col">White</th>
-                <th scope="col">Black</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each turns as turn (turn.number)}
-                <tr>
-                  <th scope="row">{turn.number}</th>
-                  <td class:latest={turn.number * 2 - 1 === notation.length}>
-                    {turn.white}
-                  </td>
-                  <td class:latest={turn.number * 2 === notation.length}>
-                    {turn.black ?? '—'}
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
+        <MoveHistory {notation} {reviewPly} onreview={review} />
       {/if}
+      <NewGame active={moves.length > 0 && !outcome} onstart={start} />
       {#if outcome && moves.length <= maxGamePlies}
         <a
           href={submissionUrl({
@@ -213,5 +215,12 @@ onMount(() => {
         </p>
       {/if}
     </section>
+  </div>
+  <div class="engine-footer">
+    <details class="game-disclosure" bind:open={engineOpen}>
+      <summary>Engine &amp; model</summary>
+      <EngineTools checkpoint={model} active={engineOpen} />
+    </details>
+    <span class="note">Local engine · Wasm</span>
   </div>
 </main>
