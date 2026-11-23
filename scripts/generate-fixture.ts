@@ -1,4 +1,4 @@
-import { WEIGHT_COUNT } from '../src/model';
+import { WEIGHT_COUNT } from '../src/modelShape';
 
 const bytes = new ArrayBuffer(WEIGHT_COUNT * Float32Array.BYTES_PER_ELEMENT);
 const weights = new DataView(bytes);

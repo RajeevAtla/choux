@@ -1,5 +1,5 @@
 import type { Chess, Color, Move } from 'chess.js';
-import { INPUTS } from './model';
+import { INPUTS } from './modelShape';
 
 const pieces = 'pnbrqk';
 

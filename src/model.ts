@@ -1,8 +1,6 @@
 import { nn, numpy as np } from '@jax-js/jax';
 
-export const INPUTS = 782;
-export const HIDDEN = 64;
-export const WEIGHT_COUNT = INPUTS * HIDDEN + HIDDEN * 2 + 1;
+export { HIDDEN, INPUTS, WEIGHT_COUNT } from './modelShape';
 
 export function forward(
   positions: np.Array,
