@@ -5,6 +5,8 @@
   "scripts": {
     "fixture": "bun scripts/generate-fixture.ts",
     "train": "bun scripts/train.ts",
+    "collect": "bun scripts/collect.ts",
+    "evaluate": "bun scripts/evaluate.ts",
     "dev": "bun run fixture && bun --bun vite",
     "check": "bun --bun svelte-check --tsconfig ./tsconfig.json",
     "build": "bun run fixture && bun --bun vite build",

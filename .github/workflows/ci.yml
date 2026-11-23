@@ -3,28 +3,117 @@ name: Check code
 on:
   push:
   pull_request:
+  schedule:
+    - cron: "23 4 * * *"
   workflow_dispatch:
+    inputs:
+      retrain:
+        description: Collect submitted games and retrain before deployment
+        type: boolean
+        default: false
+
+concurrency:
+  group: choux-${{ github.event_name == 'pull_request' && github.ref || github.ref_name }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  check:
+  retrain:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.retrain || github.event_name == 'push')
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      issues: read
+    outputs:
+      revision: ${{ steps.persist.outputs.revision }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Detect changes to the training pipeline
+        id: changes
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == push ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null && git diff --quiet "$BEFORE" HEAD -- .github/workflows/ci.yml bun.lock scripts/collect.ts scripts/dataset.ts scripts/examples.ts scripts/teacher.ts scripts/train.ts src/model.ts src/modelShape.ts src/position.ts src/checkpoint.ts src/submission.ts; then
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: oven-sh/setup-bun@v2
+        if: steps.changes.outputs.run == 'true'
+      - run: bun install --frozen-lockfile
+        if: steps.changes.outputs.run == 'true'
+      - run: bun run collect
+        if: steps.changes.outputs.run == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: bun run train "$RUNNER_TEMP/candidate.f32" data/games.jsonl public/model.f32
+        if: steps.changes.outputs.run == 'true'
+      - name: Verify candidate and persist accepted data
+        id: persist
+        if: steps.changes.outputs.run == 'true'
+        run: |
+          if [[ -f "$RUNNER_TEMP/candidate.f32" ]]; then
+            bun run evaluate "$RUNNER_TEMP/candidate.f32"
+            mv "$RUNNER_TEMP/candidate.f32" public/model.f32
+          fi
+          if [[ -f data/games.jsonl ]]; then
+            git add data/games.jsonl
+          fi
+          git add public/model.f32
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Update Choux training data and checkpoint'
+            git push origin HEAD:main
+          fi
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        if: steps.changes.outputs.run == 'true'
+        with:
+          name: choux-checkpoint
+          path: public/model.f32
+          if-no-files-found: error
+          overwrite: true
+
+  check:
+    needs: retrain
+    if: ${{ !cancelled() && (needs.retrain.result == 'skipped' || needs.retrain.result == 'success') }}
+    runs-on: ubuntu-latest
+    outputs:
+      revision: ${{ steps.source.outputs.revision }}
+      pages_artifact: ${{ steps.source.outputs.pages_artifact }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.retrain.outputs.revision || github.sha }}
+          persist-credentials: false
+      - name: Identify build source
+        id: source
+        run: |
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "pages_artifact=github-pages-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+      - if: needs.retrain.outputs.revision != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: choux-checkpoint
+          path: public
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run biome:check
       - run: bun run check
+      - run: bun run evaluate
       - run: bun run build
       - if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4
         with:
+          name: ${{ steps.source.outputs.pages_artifact }}
           path: dist
 
   deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: ${{ !cancelled() && needs.check.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     needs: check
     runs-on: ubuntu-latest
     concurrency:
@@ -36,5 +125,19 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
+      - name: Check the build revision is current
+        id: current
+        env:
+          REVISION: ${{ needs.check.outputs.revision }}
+        run: |
+          remote=$(git ls-remote --exit-code "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" refs/heads/main)
+          if [[ "${remote%%$'\t'*}" == "$REVISION" ]]; then
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          else
+            echo '::notice::A newer revision is on main. Skipping this deployment.'
+          fi
       - id: deploy
+        if: steps.current.outputs.deploy == 'true'
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: ${{ needs.check.outputs.pages_artifact }}
