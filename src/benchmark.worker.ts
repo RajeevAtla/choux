@@ -4,12 +4,13 @@ import {
   type BenchmarkRequest,
   type BenchmarkResult,
 } from './benchmark';
+import { references, tensors, unpack } from './checkpoint';
 import { forward, HIDDEN, INPUTS, WEIGHT_COUNT } from './model';
 
 const score = jit(forward);
 const worker: DedicatedWorkerGlobalScope =
   self as unknown as DedicatedWorkerGlobalScope;
-let parameters: [np.Array, np.Array, np.Array, np.Array] | undefined;
+let parameters: ReturnType<typeof tensors> | undefined;
 
 function send(result: BenchmarkResult) {
   if (result.status === 'measured') {
@@ -48,14 +49,11 @@ function referenceScore(
   return result;
 }
 
-async function infer(features: Float32Array) {
+async function infer(features: Float32Array<ArrayBuffer>) {
   if (!parameters) throw new Error('Load the model before running inference.');
   const scores = score(
     np.array(features, { shape: [BATCH_SIZE, INPUTS] }),
-    parameters[0].ref,
-    parameters[1].ref,
-    parameters[2].ref,
-    parameters[3].ref,
+    ...references(parameters),
   );
   return Float32Array.from(await scores.data());
 }
@@ -77,20 +75,8 @@ async function load({
   const response = await fetch(checkpointUrl);
   if (!response.ok)
     throw new Error(`Checkpoint request failed (${response.status}).`);
-  const bytes = new DataView(await response.arrayBuffer());
-  if (bytes.byteLength !== WEIGHT_COUNT * 4)
-    throw new Error('Unexpected checkpoint size.');
-  const weights = Float32Array.from({ length: WEIGHT_COUNT }, (_, i) =>
-    bytes.getFloat32(i * 4, true),
-  );
-  const hiddenStart = INPUTS * HIDDEN;
-  const outputStart = hiddenStart + HIDDEN;
-  parameters = [
-    np.array(weights.slice(0, hiddenStart), { shape: [INPUTS, HIDDEN] }),
-    np.array(weights.slice(hiddenStart, outputStart)),
-    np.array(weights.slice(outputStart, -1), { shape: [HIDDEN, 1] }),
-    np.array(weights.slice(-1)),
-  ];
+  const weights = unpack(await response.arrayBuffer());
+  parameters = tensors(weights);
 
   const setupMs = performance.now() - start;
   const warmStart = performance.now();
