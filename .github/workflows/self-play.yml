@@ -2,7 +2,7 @@ name: Self-play dataset
 
 on:
   schedule:
-    - cron: "13 * * * *"
+    - cron: "27 * * * *"
   workflow_dispatch:
 
 permissions:

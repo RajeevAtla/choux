@@ -59,7 +59,7 @@ The `stockfish-benchmark` Actions artifact contains the per-position report and 
 
 ### Self-play dataset
 
-At 13 minutes past each hour, **Self-play dataset** generates 16 games using the current checkpoint for both sides, with six seeded random opening plies and a cap of 96 plies per game. Each run uploads `games.jsonl` as the **choux-self-play** artifact. Choose **Self-play dataset → Run workflow** to generate a downloadable artifact on demand. Each row records the move sequence, checkpoint SHA-256, seed, and result. A `null` result means the game reached the cap. Those positions can still receive teacher scores.
+At 27 minutes past each hour, **Self-play dataset** generates 16 games using the current checkpoint for both sides, with six seeded random opening plies and a cap of 96 plies per game. Each run uploads `games.jsonl` as the **choux-self-play** artifact. Choose **Self-play dataset → Run workflow** to generate a downloadable artifact on demand. Each row records the move sequence, checkpoint SHA-256, seed, and result. A `null` result means the game reached the cap. Those positions can still receive teacher scores.
 
 To generate a smaller batch locally and use it for training, run:
 
