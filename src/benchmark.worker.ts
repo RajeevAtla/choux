@@ -57,11 +57,7 @@ async function infer(features: Float32Array) {
     parameters[2].ref,
     parameters[3].ref,
   );
-  try {
-    return Float32Array.from(await scores.data());
-  } finally {
-    scores.dispose();
-  }
+  return Float32Array.from(await scores.data());
 }
 
 async function load({
