@@ -1,0 +1,100 @@
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.keyboard-hint {
+  margin: 0.55rem 0 0;
+  font-size: 0.875rem;
+}
+
+.history-heading,
+.engine-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
+
+.history-heading h2 {
+  margin: 0;
+}
+
+.game-controls .quiet-button,
+.game-controls .history-move {
+  color: var(--ink);
+  background: transparent;
+}
+
+.game-controls .quiet-button {
+  border: 1px solid var(--rule);
+}
+
+.game-controls .history-move {
+  width: 100%;
+  min-height: 2.25rem;
+  text-align: left;
+  font-weight: 400;
+}
+
+.game-controls .history-move.latest,
+.game-controls .history-move:hover,
+.game-controls .quiet-button:hover {
+  background: var(--hover);
+}
+
+.game-controls .history-move.latest {
+  font-weight: 700;
+}
+
+.moves tbody td {
+  padding: 0.15rem;
+}
+
+.game-disclosure {
+  min-width: 0;
+}
+
+.game-disclosure summary {
+  padding: 0.65rem 0;
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.game-controls .game-disclosure {
+  margin-top: 1rem;
+  border-top: 1px solid var(--rule);
+}
+
+.game-disclosure p {
+  margin-top: 0;
+}
+
+.engine-footer {
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+}
+
+.engine-footer .game-disclosure[open] {
+  flex-basis: 100%;
+}
+
+.engine-tools h2 {
+  margin-top: 1.2rem;
+}
+
+.engine-tools h2 + p {
+  margin-top: 0.5rem;
+}
+
+.engine-tools th small {
+  display: block;
+  font-weight: 400;
+}
