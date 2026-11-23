@@ -1,0 +1,62 @@
+:root {
+  color-scheme: light dark;
+  --font-ui: azo-sans-web, "Azo Sans", "Trebuchet MS", sans-serif;
+  --font-display: "Chassi L", Chassi, Georgia, serif;
+  --paper: light-dark(#f4f6ef, #151c1b);
+  --ink: light-dark(#1c3326, #eaf2e8);
+  --muted: light-dark(#495b4e, #b1c1b7);
+  --rule: light-dark(#a6b49f, #53675f);
+  --row-rule: light-dark(#ccd6cc, #394b45);
+  --accent: light-dark(#244f36, #a9d4b1);
+  --accent-hover: light-dark(#183a27, #c4e6ca);
+  --on-accent: light-dark(#fff, #18261c);
+  --hover: light-dark(#dfe8da, #273b32);
+  --focus: light-dark(#36734d, #b7dfbb);
+  --board-light: light-dark(#eee6d1, #acae94);
+  --board-dark: light-dark(#96a789, #657762);
+  --board-highlight: light-dark(#ddc57c, #c6a864);
+  --board-frame: light-dark(#1c3326, #879786);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+.header-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+}
+
+.theme-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.75rem;
+  color: var(--muted);
+}
+
+.theme-picker select {
+  appearance: none;
+  border: 1px solid var(--rule);
+  border-radius: 0.25rem;
+  min-height: 2.5rem;
+  padding: 0.35rem 1.7rem 0.35rem 0.55rem;
+  color: var(--ink);
+  background:
+    linear-gradient(45deg, transparent 50%, var(--accent) 50%)
+    calc(100% - 0.8rem) 54% / 0.3rem 0.3rem no-repeat,
+    linear-gradient(135deg, var(--accent) 50%, transparent 50%)
+    calc(100% - 0.5rem) 54% / 0.3rem 0.3rem no-repeat;
+  font: inherit;
+}
+
+.theme-picker select:focus-visible {
+  outline: 0.15rem solid var(--focus);
+  outline-offset: 0.15rem;
+}
