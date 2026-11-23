@@ -6,9 +6,7 @@ Play at [rajeevatla.com/choux](https://rajeevatla.com/choux/) or run `bun instal
 
 The theme follows your device by default. Use the **Theme** control to choose Light or Dark. The chess sprite is by Cburnett and Rfc1394, adapted by [cm-chessboard](https://github.com/shaack/cm-chessboard), under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
 
-Typography prefers R-Typography's Azo Sans and Chassi where available. To serve Azo Sans on the web, set the GitHub Actions repository variable `VITE_ADOBE_FONTS_KIT` to your licensed [Adobe Fonts web project](https://fonts.adobe.com/fonts/azo-sans) ID. Local builds accept the same environment variable. The app uses system fonts when the selected families are unavailable.
-
-R-Typography's [test font license](https://www.r-typography.com/license/test-fonts) permits local evaluation. Trial files belong on the evaluating workstation, outside the public build and repository.
+Choux uses Azo Sans and Chassi L by [R-Typography](https://www.r-typography.com/fonts), bundled with the foundry's permission. The font files are third-party assets and are subject to R-Typography's terms.
 
 ## Inference benchmark
 

@@ -106,8 +106,6 @@ jobs:
       - run: bun run check
       - run: bun run evaluate
       - run: bun run build
-        env:
-          VITE_ADOBE_FONTS_KIT: ${{ vars.VITE_ADOBE_FONTS_KIT }}
       - if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4
         with:

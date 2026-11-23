@@ -1,7 +1,28 @@
+@font-face {
+  font-family: "Azo Sans";
+  src: url("./assets/fonts/AzoSansTest-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Azo Sans";
+  src: url("./assets/fonts/AzoSansTest-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Chassi L";
+  src: url("./assets/fonts/ChassiTestL-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light dark;
-  --font-ui: azo-sans-web, "Azo Sans", "Trebuchet MS", sans-serif;
-  --font-display: "Chassi L", Chassi, Georgia, serif;
+  --font-ui: "Azo Sans", "Trebuchet MS", sans-serif;
+  --font-display: "Chassi L", Georgia, serif;
   --paper: light-dark(#f4f6ef, #151c1b);
   --ink: light-dark(#1c3326, #eaf2e8);
   --muted: light-dark(#495b4e, #b1c1b7);
