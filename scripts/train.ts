@@ -89,19 +89,29 @@ const bestPublished = (await incumbentFile.exists())
   ? await error(tensors(unpack(await incumbentFile.arrayBuffer())), validation)
   : Infinity;
 const games = (await readGames(dataset)).slice(-256);
-const uniqueGames = new Map<string, { moves: string[] }>(
-  games.map((game) => [game.moves.join(' '), game]),
-);
+const seen = new Set<string>();
+const distinct = (game: { moves: string[] }) => {
+  const key = game.moves.join(' ');
+  if (seen.has(key)) return false;
+  seen.add(key);
+  return true;
+};
+const submittedGames = games.filter(distinct);
+let selfPlayGames: { moves: string[] }[] = [];
 if (selfPlayDataset) {
   const selfPlay = await readGames<{ moves: string[] }>(selfPlayDataset);
   if (!selfPlay.length)
     throw new Error(`No self-play games found at ${selfPlayDataset}.`);
-  const existing = uniqueGames.size;
-  for (const game of selfPlay) uniqueGames.set(game.moves.join(' '), game);
-  console.log(`Added ${uniqueGames.size - existing} distinct self-play games.`);
+  selfPlayGames = selfPlay.filter(distinct);
 }
+const submittedPositions = fromGames(submittedGames);
+const selfPlayPositions = fromGames(selfPlayGames);
 const training = generate(144, 12459).concat(
-  fromGames([...uniqueGames.values()]),
+  submittedPositions,
+  selfPlayPositions,
+);
+console.log(
+  `Sampled ${submittedPositions.length} positions from ${submittedGames.length} issue games and ${selfPlayPositions.length} positions from ${selfPlayGames.length} self-play games.`,
 );
 console.log(
   `Training on ${training.length} positions, validating on ${validation.length}. Random MAE ${baseline.toFixed(4)}.`,
@@ -156,6 +166,10 @@ if (reportPath) {
       candidateMae: roundTrip,
       incumbentMae: Number.isFinite(bestPublished) ? bestPublished : null,
       trainingPositions: training.length,
+      issueGames: submittedGames.length,
+      issuePositions: submittedPositions.length,
+      selfPlayGames: selfPlayGames.length,
+      selfPlayPositions: selfPlayPositions.length,
     }),
   );
 }

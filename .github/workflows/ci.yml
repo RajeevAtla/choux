@@ -37,23 +37,32 @@ jobs:
       - run: bun run collect
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - name: Collect hourly self-play batches
+      - name: Collect recent self-play batches
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow self-play.yml \
-            --branch main --event schedule --status success --limit 6 --json databaseId --jq '.[].databaseId')
-          if [[ -z "$runs" ]]; then
-            echo "No successful hourly self-play runs yet."
-            exit 0
-          fi
+            --branch main --status success --limit 30 --json databaseId --jq '.[].databaseId')
           mkdir -p self-play
           : > self-play/games.jsonl
+          collected=0
           for run_id in $runs; do
+            artifact=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts?name=choux-self-play" \
+              --jq '.artifacts[] | select(.expired == false) | .id')
+            if [[ -z "$artifact" ]]; then
+              echo "No available self-play artifact for run $run_id."
+              continue
+            fi
             batch="$RUNNER_TEMP/choux-self-play/$run_id"
             gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name choux-self-play --dir "$batch"
             cat "$batch/games.jsonl" >> self-play/games.jsonl
+            echo "Collected self-play run $run_id."
+            collected=$((collected + 1))
+            if [[ "$collected" -eq 6 ]]; then
+              break
+            fi
           done
+          echo "Collected $collected self-play batches."
       - run: |
           args=()
           if [[ -s self-play/games.jsonl ]]; then
