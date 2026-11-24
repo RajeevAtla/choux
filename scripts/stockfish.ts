@@ -51,12 +51,20 @@ export async function startStockfish(executable: string) {
     throw error;
   }
 
-  async function analyze(fen: string, restriction?: string) {
+  async function analyze(
+    fen: string,
+    restriction?: string,
+    options?: { nodes: number; moves: readonly string[] },
+  ) {
     send('ucinewgame');
     await ready();
-    send(`position fen ${fen}`);
     send(
-      `go nodes ${nodes}${restriction ? ` searchmoves ${restriction}` : ''}`,
+      options?.moves.length
+        ? `position startpos moves ${options.moves.join(' ')}`
+        : `position fen ${fen}`,
+    );
+    send(
+      `go nodes ${options?.nodes ?? nodes}${restriction ? ` searchmoves ${restriction}` : ''}`,
     );
     let points: number | undefined;
     const end = await readUntil('bestmove ', (line) => {
