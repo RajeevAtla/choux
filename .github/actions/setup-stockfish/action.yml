@@ -1,0 +1,21 @@
+name: Set up Stockfish
+description: Install the pinned Stockfish 18 executable for Linux x86-64 AVX2
+outputs:
+  executable:
+    description: Absolute path to the Stockfish executable
+    value: ${{ steps.install.outputs.executable }}
+runs:
+  using: composite
+  steps:
+    - id: install
+      shell: bash
+      run: |
+        archive="$RUNNER_TEMP/stockfish.tar"
+        curl --fail --location --retry 3 --silent --show-error \
+          https://github.com/official-stockfish/Stockfish/releases/download/sf_18/stockfish-ubuntu-x86-64-avx2.tar \
+          --output "$archive"
+        printf '536c0c2c0cf06450df0bfb5e876ef0d3119950703a8f143627f990c7b5417964  %s\n' "$archive" | sha256sum --check --status
+        tar -xf "$archive" -C "$RUNNER_TEMP"
+        executable="$RUNNER_TEMP/stockfish/stockfish-ubuntu-x86-64-avx2"
+        test -x "$executable"
+        printf 'executable=%s\n' "$executable" >> "$GITHUB_OUTPUT"

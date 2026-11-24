@@ -116,17 +116,11 @@ jobs:
           bun run train "$RUNNER_TEMP/candidate.f32" data/games.jsonl public/model.f32 "${args[@]}"
         env:
           CHOUX_TRAINING_REPORT: ${{ runner.temp }}/training-report.json
-      - name: Install Stockfish 18
-        run: |
-          archive="$RUNNER_TEMP/stockfish.tar"
-          curl --fail --location --retry 3 --silent --show-error \
-            https://github.com/official-stockfish/Stockfish/releases/download/sf_18/stockfish-ubuntu-x86-64-avx2.tar \
-            --output "$archive"
-          printf '536c0c2c0cf06450df0bfb5e876ef0d3119950703a8f143627f990c7b5417964  %s\n' "$archive" | sha256sum --check --status
-          tar -xf "$archive" -C "$RUNNER_TEMP"
+      - uses: ./.github/actions/setup-stockfish
+        id: stockfish
       - name: Compare both models with Stockfish
         env:
-          STOCKFISH: ${{ runner.temp }}/stockfish/stockfish-ubuntu-x86-64-avx2
+          STOCKFISH: ${{ steps.stockfish.outputs.executable }}
         run: bun run benchmark:strength "$RUNNER_TEMP/candidate.f32" public/model.f32 "$RUNNER_TEMP/stockfish-report.json"
       - uses: actions/upload-artifact@v7
         with:
@@ -135,11 +129,26 @@ jobs:
             ${{ runner.temp }}/stockfish-report.json
             ${{ runner.temp }}/training-report.json
           if-no-files-found: error
+      - name: Check Stockfish promotion gate
+        id: stockfish_gate
+        run: |
+          bun -e '
+            const { candidate, incumbent } = await Bun.file(Bun.argv[1]).json();
+            if (!Number.isFinite(candidate?.meanLoss) || !Number.isFinite(incumbent?.meanLoss))
+              throw new Error("Stockfish report is missing a finite mean loss.");
+            const passes = candidate.meanLoss <= incumbent.meanLoss;
+            console.error(`Stockfish gate ${passes ? "passed" : "failed"}. Mean expected-score loss: candidate ${candidate.meanLoss} pp, incumbent ${incumbent.meanLoss} pp.`);
+            console.log(`passes=${passes}`);
+          ' "$RUNNER_TEMP/stockfish-report.json" >> "$GITHUB_OUTPUT"
       - name: Verify candidate and persist accepted data
         id: persist
+        env:
+          STOCKFISH_GATE_PASSED: ${{ steps.stockfish_gate.outputs.passes }}
         run: |
           promoted=false
-          if jq -e '.eligible' "$RUNNER_TEMP/training-report.json" >/dev/null && ! cmp -s "$RUNNER_TEMP/candidate.f32" public/model.f32; then
+          if [[ "$STOCKFISH_GATE_PASSED" == "true" ]] &&
+            jq -e '.eligible' "$RUNNER_TEMP/training-report.json" >/dev/null &&
+            ! cmp -s "$RUNNER_TEMP/candidate.f32" public/model.f32; then
             bun run evaluate "$RUNNER_TEMP/candidate.f32"
             mv "$RUNNER_TEMP/candidate.f32" public/model.f32
             promoted=true

@@ -55,13 +55,15 @@ Training checks mean absolute error (MAE) on a fixed holdout set after each epoc
 
 ### Stockfish comparison
 
-Every retrain compares the candidate and incumbent against [Stockfish 18](https://github.com/official-stockfish/Stockfish/releases/tag/sf_18) on 22 fixed positions. At 20,000 nodes per search, Stockfish estimates win, draw, and loss probabilities for its best move and for each chosen move. The benchmark reports the average expected-score points lost (`win + draw / 2`) and agreement with Stockfish's best move. Lower loss is better. The promotion gate still uses held-out teacher error and a chess smoke test.
+Every retrain compares the candidate and incumbent against [Stockfish 18](https://github.com/official-stockfish/Stockfish/releases/tag/sf_18) on 22 fixed positions excluded from training. At 20,000 nodes per search, Stockfish estimates win, draw, and loss probabilities for its best move and for each chosen move. The benchmark reports the average expected-score points lost (`win + draw / 2`) and agreement with Stockfish's best move. A candidate must pass the validation MAE gate and chess smoke test and match or beat the incumbent's Stockfish mean loss before deployment.
 
 The `stockfish-benchmark` Actions artifact contains the per-position report and validation metrics. The compact `public/model-history.jsonl` file records each run's summary, including rejected candidates, and feeds the **Model history** table in **Engine & model**.
 
 ### Self-play dataset
 
-At 27 minutes past each hour, **Self-play dataset** generates 16 games using the current checkpoint for both sides, with six seeded random opening plies and a cap of 96 plies per game. Each run uploads `games.jsonl` as the **choux-self-play** artifact. Choose **Self-play dataset → Run workflow** to generate a downloadable artifact on demand. Each row records the move sequence, checkpoint SHA-256, seed, and result. A `null` result means the game reached the cap. Those positions can still receive teacher scores.
+At 27 minutes past each hour, **Self-play dataset** generates 12 games of Choux against itself and four against Stockfish 18, with Choux playing each color twice against Stockfish. Games start with six opening plies and are capped at 96 plies. Self-play uses seeded random openings. Stockfish games use seeded pairs from a separate opening list and a budget of 4,000 nodes per search. For sampled positions after those openings, Stockfish's expected score for the side to move is mapped from `[0, 1]` to `[-1, 1]` and used in place of the heuristic teacher. The training report records how many positions used Stockfish scores.
+
+Each run uploads `games.jsonl` as the **choux-self-play** artifact. Choose **Self-play dataset → Run workflow** to generate a downloadable artifact on demand. Each row records the move sequence, checkpoint SHA-256, seed, and result. Stockfish games also record the opponent, its color, and scores keyed by ply. A `null` result means the game reached the cap.
 
 To generate a smaller batch locally and use it for training, run:
 
@@ -69,3 +71,5 @@ To generate a smaller batch locally and use it for training, run:
 bun run self-play self-play/games.jsonl public/model.f32 4 80 example
 bun run train self-play/candidate.f32 data/games.jsonl public/model.f32 self-play/games.jsonl
 ```
+
+Set `STOCKFISH` to the executable path and add a final argument, such as `2` after `example`, to replace that many self-play games with Stockfish games.

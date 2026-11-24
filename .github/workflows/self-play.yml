@@ -18,7 +18,11 @@ jobs:
           persist-credentials: false
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: bun run self-play self-play/games.jsonl public/model.f32 16 96 "$GITHUB_RUN_ID"
+      - uses: ./.github/actions/setup-stockfish
+        id: stockfish
+      - run: bun run self-play self-play/games.jsonl public/model.f32 16 96 "$GITHUB_RUN_ID" 4
+        env:
+          STOCKFISH: ${{ steps.stockfish.outputs.executable }}
       - uses: actions/upload-artifact@v7
         with:
           name: choux-self-play

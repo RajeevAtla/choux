@@ -9,7 +9,15 @@ import {
 import { references, tensors, unpack } from '../src/checkpoint';
 import { forward, INPUTS, WEIGHT_COUNT } from '../src/model';
 import { datasetPath, readGames } from './dataset';
-import { type Example, fromGames, generate, random } from './examples';
+import {
+  type Example,
+  fromGames,
+  generate,
+  positionKey,
+  random,
+  type TrainingGame,
+} from './examples';
+import { referencePositions } from './reference-positions';
 
 type Weights = ReturnType<typeof tensors>;
 const batchSize = 64;
@@ -99,22 +107,29 @@ const distinct = (game: { moves: string[] }) => {
   return true;
 };
 const submittedGames = games.filter(distinct);
-let selfPlayGames: { moves: string[] }[] = [];
+let selfPlayGames: TrainingGame[] = [];
 if (selfPlayDataset) {
-  const selfPlay = await readGames<{ moves: string[] }>(selfPlayDataset);
+  const selfPlay = await readGames<TrainingGame>(selfPlayDataset);
   if (!selfPlay.length)
     throw new Error(`No self-play games found at ${selfPlayDataset}.`);
   selfPlayGames = selfPlay.filter(distinct);
 }
-const submittedPositions = fromGames(submittedGames);
-const selfPlayPositions = fromGames(selfPlayGames);
-const training = generate(144, 12459).concat(
+const excludedPositions = new Set(
+  referencePositions.map(({ fen }) => positionKey(fen)),
+);
+const submittedPositions = fromGames(submittedGames, excludedPositions);
+const selfPlayPositions = fromGames(selfPlayGames, excludedPositions);
+const stockfishPositions = selfPlayPositions.filter(
+  ({ stockfish }) => stockfish,
+).length;
+const training = generate(144, 12459, excludedPositions).concat(
   submittedPositions,
   selfPlayPositions,
 );
 console.log(
   `Sampled ${submittedPositions.length} positions from ${submittedGames.length} issue games and ${selfPlayPositions.length} positions from ${selfPlayGames.length} self-play games.`,
 );
+console.log(`Used Stockfish scores for ${stockfishPositions} positions.`);
 console.log(
   `Training on ${training.length} positions, validating on ${validation.length}. Random MAE ${baseline.toFixed(4)}.`,
 );
@@ -181,6 +196,7 @@ if (reportPath) {
       issuePositions: submittedPositions.length,
       selfPlayGames: selfPlayGames.length,
       selfPlayPositions: selfPlayPositions.length,
+      stockfishPositions,
     }),
   );
 }
