@@ -3,8 +3,10 @@ name: Check code
 on:
   push:
   pull_request:
-  schedule:
-    - cron: "43 */6 * * *"
+  workflow_run:
+    workflows: ["Self-play dataset"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       retrain:
@@ -21,7 +23,12 @@ permissions:
 
 jobs:
   retrain:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.retrain)
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'workflow_dispatch' && inputs.retrain) ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'schedule' &&
+      github.event.workflow_run.conclusion == 'success'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -32,6 +39,8 @@ jobs:
       revision: ${{ steps.persist.outputs.revision }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: main
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run collect
@@ -40,16 +49,28 @@ jobs:
       - name: Collect recent self-play batches
         env:
           GH_TOKEN: ${{ github.token }}
+          TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow self-play.yml \
             --branch main --status success --limit 30 --json databaseId --jq '.[].databaseId')
           mkdir -p self-play
           : > self-play/games.jsonl
           collected=0
-          for run_id in $runs; do
+          seen_trigger=false
+          for run_id in $TRIGGER_RUN_ID $runs; do
+            if [[ "$run_id" == "$TRIGGER_RUN_ID" ]]; then
+              if [[ "$seen_trigger" == true ]]; then
+                continue
+              fi
+              seen_trigger=true
+            fi
             artifact=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts?name=choux-self-play" \
               --jq '.artifacts[] | select(.expired == false) | .id')
             if [[ -z "$artifact" ]]; then
+              if [[ "$run_id" == "$TRIGGER_RUN_ID" ]]; then
+                echo "::error::Missing self-play artifact from triggering run $run_id."
+                exit 1
+              fi
               echo "No available self-play artifact for run $run_id."
               continue
             fi
@@ -118,7 +139,9 @@ jobs:
 
   check:
     needs: retrain
-    if: ${{ !cancelled() && (needs.retrain.result == 'skipped' || needs.retrain.result == 'success') }}
+    if: >-
+      !cancelled() && (needs.retrain.result == 'success' ||
+      (github.event_name != 'workflow_run' && needs.retrain.result == 'skipped'))
     runs-on: ubuntu-latest
     outputs:
       revision: ${{ steps.source.outputs.revision }}
