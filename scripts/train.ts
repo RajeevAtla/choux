@@ -13,6 +13,8 @@ import { type Example, fromGames, generate, random } from './examples';
 
 type Weights = ReturnType<typeof tensors>;
 const batchSize = 64;
+const maxEpochs = 36;
+const patience = 4;
 const gradient = grad(
   (weights: Weights, features: np.Array, targets: np.Array) =>
     np.square(forward(features, ...weights).sub(targets)).mean(),
@@ -118,8 +120,10 @@ console.log(
 );
 
 let best = Infinity;
+let bestEpoch = 0;
+let epochsRun = 0;
 let checkpoint: ArrayBuffer | undefined;
-for (let epoch = 0; epoch < 12; epoch++) {
+for (let epoch = 1; epoch <= maxEpochs; epoch++) {
   for (let i = training.length - 1; i > 0; i--) {
     const j = Math.floor(randomize() * (i + 1));
     [training[i], training[j]] = [training[j], training[i]];
@@ -131,16 +135,21 @@ for (let epoch = 0; epoch < 12; epoch++) {
     );
   }
   const validationError = await error(weights, validation);
-  console.log(
-    `Epoch ${epoch + 1} validation MAE ${validationError.toFixed(4)}`,
-  );
+  epochsRun = epoch;
+  console.log(`Epoch ${epoch} validation MAE ${validationError.toFixed(4)}`);
   if (validationError < best) {
     best = validationError;
+    bestEpoch = epoch;
     checkpoint = await serialize(weights);
+  }
+  if (epoch - bestEpoch >= patience) {
+    console.log(`Early stopping after ${patience} epochs without improvement.`);
+    break;
   }
 }
 
 if (!checkpoint) throw new Error('Training produced no finite checkpoint.');
+console.log(`Best validation MAE at epoch ${bestEpoch} of ${epochsRun}.`);
 const roundTrip = await error(tensors(unpack(checkpoint)), validation);
 if (Math.abs(roundTrip - best) > 1e-6)
   throw new Error('Exported checkpoint failed validation.');
@@ -166,6 +175,8 @@ if (reportPath) {
       candidateMae: roundTrip,
       incumbentMae: Number.isFinite(bestPublished) ? bestPublished : null,
       trainingPositions: training.length,
+      epochsRun,
+      bestEpoch,
       issueGames: submittedGames.length,
       issuePositions: submittedPositions.length,
       selfPlayGames: selfPlayGames.length,

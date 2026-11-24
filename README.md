@@ -51,7 +51,7 @@ Opening a valid **Choux training game** issue queues retraining using that submi
 
 Training starts after each successful hourly **Self-play dataset** run on `main` and includes the batch that triggered it. To retrain on demand, choose **Check code** in the Actions tab and select **retrain**. The runner replays submitted games to verify legality and the result, deduplicates by move sequence, and records accepted games in `data/games.jsonl`. Training samples from up to 256 recent issue games and up to six available self-play batches, including recent batches from scheduled and manually triggered runs on `main`. The training report counts the games and positions used from each source after deduplication.
 
-The workflow checks the candidate against a fixed holdout set and runs a chess smoke test. It retains the incumbent if the candidate regresses. The build receives the selected checkpoint as an Actions artifact and deploys it with the static app. Git stores the accepted dataset and checkpoint so subsequent builds can reuse them.
+Training checks mean absolute error (MAE) on a fixed holdout set after each epoch. It keeps the checkpoint with the lowest validation MAE and stops after four consecutive epochs without a new best, with a maximum of 36 epochs. The training report records how many epochs ran and which epoch produced the best checkpoint. The workflow runs a chess smoke test and retains the incumbent if the candidate regresses. The build receives the selected checkpoint as an Actions artifact and deploys it with the static app. Git stores the accepted dataset and checkpoint so subsequent builds can reuse them.
 
 ### Stockfish comparison
 
