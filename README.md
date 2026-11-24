@@ -47,6 +47,8 @@ In four games against each baseline, Choux won one game against random moves and
 
 After a completed game, **Share game for training** opens a prefilled public GitHub issue with the moves, side, result, and checkpoint SHA-256. Players decide whether to submit the issue on GitHub.
 
+Opening a valid **Choux training game** issue queues retraining using that submission, other collected issue games, and recent self-play batches.
+
 Training starts after each successful hourly **Self-play dataset** run on `main` and includes the batch that triggered it. To retrain on demand, choose **Check code** in the Actions tab and select **retrain**. The runner replays submitted games to verify legality and the result, deduplicates by move sequence, and records accepted games in `data/games.jsonl`. Training samples from up to 256 recent issue games and up to six available self-play batches, including recent batches from scheduled and manually triggered runs on `main`. The training report counts the games and positions used from each source after deduplication.
 
 The workflow checks the candidate against a fixed holdout set and runs a chess smoke test. It retains the incumbent if the candidate regresses. The build receives the selected checkpoint as an Actions artifact and deploys it with the static app. Git stores the accepted dataset and checkpoint so subsequent builds can reuse them.

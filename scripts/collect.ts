@@ -12,6 +12,24 @@ const dataset = await readGames();
 const seen = new Set(dataset.map(({ moves }) => moves.join(' ')));
 let added = 0;
 
+function addSubmission(issue: Issue) {
+  if (issue.pull_request || issue.title !== submissionTitle || !issue.body)
+    return;
+  const game = parseSubmission(issue.body);
+  if (!game) return;
+  const key = game.moves.join(' ');
+  if (seen.has(key)) return;
+  seen.add(key);
+  dataset.push(game);
+  added++;
+}
+
+// Collect the triggering game even if the issue list has not caught up yet.
+if (Bun.env.GITHUB_EVENT_NAME === 'issues' && Bun.env.GITHUB_EVENT_PATH) {
+  const { issue } = await Bun.file(Bun.env.GITHUB_EVENT_PATH).json();
+  addSubmission(issue);
+}
+
 for (let page = 1; added < maxNewGames; page++) {
   const endpoint = `https://api.github.com/repos/${repo}/issues?state=all&sort=created&direction=asc&per_page=100&page=${page}`;
   const response = await fetch(endpoint, {
@@ -28,15 +46,8 @@ for (let page = 1; added < maxNewGames; page++) {
 
   const issues: Issue[] = await response.json();
   for (const issue of issues) {
-    if (issue.pull_request || issue.title !== submissionTitle || !issue.body)
-      continue;
-    const game = parseSubmission(issue.body);
-    if (!game) continue;
-    const key = game.moves.join(' ');
-    if (seen.has(key)) continue;
-    seen.add(key);
-    dataset.push(game);
-    if (++added === maxNewGames) break;
+    addSubmission(issue);
+    if (added === maxNewGames) break;
   }
   if (issues.length < 100) break;
 }

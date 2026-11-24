@@ -3,6 +3,8 @@ name: Check code
 on:
   push:
   pull_request:
+  issues:
+    types: [opened]
   workflow_run:
     workflows: ["Self-play dataset"]
     types: [completed]
@@ -17,15 +19,37 @@ on:
 concurrency:
   group: choux-${{ github.event_name == 'pull_request' && github.ref || github.ref_name }}
   cancel-in-progress: false
+  queue: max
 
 permissions:
   contents: read
 
 jobs:
+  validate-submission:
+    if: github.event_name == 'issues' && github.event.issue.title == 'Choux training game'
+    runs-on: ubuntu-latest
+    outputs:
+      valid: ${{ steps.validate.outputs.valid }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - id: validate
+        run: |
+          bun -e "
+            import { parseSubmission } from './scripts/dataset';
+            const { issue } = await Bun.file(Bun.env.GITHUB_EVENT_PATH).json();
+            console.log('valid=' + Boolean(parseSubmission(issue.body ?? '')));
+          " >> "$GITHUB_OUTPUT"
+
   retrain:
+    needs: validate-submission
     if: >-
-      github.ref == 'refs/heads/main' &&
-      ((github.event_name == 'workflow_dispatch' && inputs.retrain) ||
+      !cancelled() && github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'issues' && needs.validate-submission.outputs.valid == 'true') ||
+      (github.event_name == 'workflow_dispatch' && inputs.retrain) ||
       (github.event_name == 'workflow_run' &&
       github.event.workflow_run.event == 'schedule' &&
       github.event.workflow_run.conclusion == 'success'))
@@ -141,7 +165,8 @@ jobs:
     needs: retrain
     if: >-
       !cancelled() && (needs.retrain.result == 'success' ||
-      (github.event_name != 'workflow_run' && needs.retrain.result == 'skipped'))
+      (github.event_name != 'workflow_run' && github.event_name != 'issues' &&
+      needs.retrain.result == 'skipped'))
     runs-on: ubuntu-latest
     outputs:
       revision: ${{ steps.source.outputs.revision }}
