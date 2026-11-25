@@ -1,8 +1,12 @@
 import { numpy as np } from '@jax-js/jax';
 import { HIDDEN, INPUTS, WEIGHT_COUNT } from './model';
+import { POLICY_WEIGHTS } from './modelShape';
 
 export function unpack(bytes: ArrayBuffer) {
-  if (bytes.byteLength !== WEIGHT_COUNT * 4)
+  if (
+    bytes.byteLength !== WEIGHT_COUNT * 4 &&
+    bytes.byteLength !== (WEIGHT_COUNT + POLICY_WEIGHTS) * 4
+  )
     throw new Error('Unexpected checkpoint size.');
   const view = new DataView(bytes);
   const weights = Float32Array.from({ length: WEIGHT_COUNT }, (_, i) =>
