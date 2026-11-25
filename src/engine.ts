@@ -75,10 +75,19 @@ async function scoreMoves(
   return ranked.sort((a, b) => b.order - a.order);
 }
 
-export async function rankMoves(game: Chess, evaluate: Evaluate) {
+export async function rankMoves(
+  game: Chess,
+  evaluate: Evaluate,
+  deadline = Infinity,
+) {
   return (
-    (await scoreMoves(game, evaluate, game.moves({ verbose: true }), false)) ??
-    []
+    (await scoreMoves(
+      game,
+      evaluate,
+      game.moves({ verbose: true }),
+      false,
+      deadline,
+    )) ?? []
   );
 }
 

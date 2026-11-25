@@ -17,6 +17,7 @@ const checkpoint = new URL(
   `${import.meta.env.BASE_URL}model.f32`,
   location.href,
 ).href;
+const search = new URLSearchParams(location.search).get('search');
 let side = $state<Color>('w');
 let pieces = $state(game.board().flat());
 let moves = $state<string[]>([]);
@@ -65,8 +66,7 @@ function updateTurn() {
       checkpoint,
       id: ++id,
       moves: [...moves],
-      tactical:
-        new URLSearchParams(location.search).get('search') === 'tactical',
+      search: search === 'mctx' || search === 'tactical' ? search : undefined,
     });
   }
 }
