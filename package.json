@@ -9,6 +9,7 @@
     "collect": "bun scripts/collect.ts",
     "evaluate": "bun scripts/evaluate.ts",
     "benchmark:strength": "bun scripts/benchmark-strength.ts",
+    "benchmark:matches": "bun scripts/benchmark-matches.ts",
     "dev": "bun run fixture && bun --bun vite",
     "check": "bun --bun svelte-check --tsconfig ./tsconfig.json",
     "build": "bun run fixture && bun --bun vite build",
