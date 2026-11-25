@@ -20,7 +20,7 @@ export function random(seed: number) {
   };
 }
 
-function sample(game: Chess, value: number, stockfish = false): Example {
+export function sample(game: Chess, value: number, stockfish = false): Example {
   const features = new Float32Array(INPUTS);
   encode(game, features);
   return { features, value, stockfish };
@@ -63,6 +63,7 @@ export function sampledPly(ply: number, length: number) {
 export function fromGames(
   games: readonly TrainingGame[],
   excluded?: ReadonlySet<string>,
+  stockfishLabels?: ReadonlyMap<string, number>,
 ) {
   const samples: Example[] = [];
   for (const { moves, stockfishValues } of games) {
@@ -72,7 +73,9 @@ export function fromGames(
         sampledPly(ply, moves.length) &&
         !excluded?.has(positionKey(game.fen()))
       ) {
-        const value = stockfishValues?.[ply];
+        const value =
+          stockfishLabels?.get(positionKey(game.fen())) ??
+          stockfishValues?.[ply];
         samples.push(
           sample(game, value ?? teach(game).value, value !== undefined),
         );
