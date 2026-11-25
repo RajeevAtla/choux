@@ -86,7 +86,7 @@ try {
         playedScores.set(moves.length, points);
         played = playCoordinate(game, best);
       } else {
-        const move = await chooseMove(game, evaluate, Infinity);
+        const move = await chooseMove(game, evaluate);
         if (!move)
           throw new Error('Self-play found no move in a live position.');
         played = game.move(move);

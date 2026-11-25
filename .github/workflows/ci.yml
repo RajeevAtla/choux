@@ -15,6 +15,10 @@ on:
         description: Collect submitted and self-play games and retrain before deployment
         type: boolean
         default: false
+      match_benchmark:
+        description: Play full matches against Stockfish and the incumbent when retraining
+        type: boolean
+        default: false
 
 concurrency:
   group: choux-${{ github.event_name == 'pull_request' && github.ref || github.ref_name }}
@@ -108,6 +112,8 @@ jobs:
             fi
           done
           echo "Collected $collected self-play batches."
+      - uses: ./.github/actions/setup-stockfish
+        id: stockfish
       - run: |
           args=()
           if [[ -s self-play/games.jsonl ]]; then
@@ -116,18 +122,29 @@ jobs:
           bun run train "$RUNNER_TEMP/candidate.f32" data/games.jsonl public/model.f32 "${args[@]}"
         env:
           CHOUX_TRAINING_REPORT: ${{ runner.temp }}/training-report.json
-      - uses: ./.github/actions/setup-stockfish
-        id: stockfish
+          CHOUX_TRAINING_STOCKFISH: "1"
+          CHOUX_POLICY_POSITIONS: ${{ runner.temp }}/policy-positions.json
+          STOCKFISH: ${{ steps.stockfish.outputs.executable }}
+      - name: Train Stockfish move preferences
+        env:
+          STOCKFISH: ${{ steps.stockfish.outputs.executable }}
+        run: bun scripts/train-policy.ts "$RUNNER_TEMP/candidate.f32" "$RUNNER_TEMP/policy-positions.json"
       - name: Compare both models with Stockfish
         env:
           STOCKFISH: ${{ steps.stockfish.outputs.executable }}
         run: bun run benchmark:strength "$RUNNER_TEMP/candidate.f32" public/model.f32 "$RUNNER_TEMP/stockfish-report.json"
+      - name: Play paired benchmark games
+        if: inputs.match_benchmark
+        env:
+          STOCKFISH: ${{ steps.stockfish.outputs.executable }}
+        run: bun run benchmark:matches "$RUNNER_TEMP/candidate.f32" public/model.f32 "$RUNNER_TEMP/match-report.json"
       - uses: actions/upload-artifact@v7
         with:
           name: stockfish-benchmark-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/stockfish-report.json
             ${{ runner.temp }}/training-report.json
+            ${{ runner.temp }}/match-report.json
           if-no-files-found: error
       - name: Check Stockfish promotion gate
         id: stockfish_gate

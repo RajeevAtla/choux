@@ -1,6 +1,6 @@
 export type EngineRequest = { id: number; checkpoint: string } & (
   | { type: 'load' }
-  | { type: 'move'; moves: string[] }
+  | { type: 'move'; moves: string[]; tactical?: boolean }
 );
 
 export type EngineResponse = { id: number } & (

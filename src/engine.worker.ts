@@ -1,5 +1,5 @@
 import { Chess } from 'chess.js';
-import { chooseMove, evaluator } from './engine';
+import { chooseMove, chooseMoveTactical, evaluator } from './engine';
 import type { EngineRequest, EngineResponse } from './engineMessages';
 import { coordinate, replay } from './position';
 
@@ -31,7 +31,8 @@ self.onmessage = async ({ data }: MessageEvent<EngineRequest>) => {
     } else {
       const game = new Chess();
       replay(game, data.moves);
-      const move = await chooseMove(game, evaluate);
+      const search = data.tactical ? chooseMoveTactical : chooseMove;
+      const move = await search(game, evaluate);
       if (!move) throw new Error('No legal move remains.');
       send({ type: 'move', id: data.id, move: coordinate(move) });
     }

@@ -60,7 +60,14 @@ function updateTurn() {
     status = game.isCheck() ? 'Your move. You are in check.' : 'Your move.';
   } else if (model) {
     status = 'Choux is thinking…';
-    send({ type: 'move', checkpoint, id: ++id, moves: [...moves] });
+    send({
+      type: 'move',
+      checkpoint,
+      id: ++id,
+      moves: [...moves],
+      tactical:
+        new URLSearchParams(location.search).get('search') === 'tactical',
+    });
   }
 }
 

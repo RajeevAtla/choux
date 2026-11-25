@@ -1,10 +1,21 @@
 import { Chess } from 'chess.js';
-import { chooseMove, evaluator } from '../src/engine';
+import {
+  chooseMove,
+  chooseMoveBaseline,
+  chooseMoveTactical,
+  evaluator,
+  moveBudgetMs,
+} from '../src/engine';
 import { coordinate } from '../src/position';
 import { referencePositions } from './reference-positions';
 import { nodes, startStockfish } from './stockfish';
 
-type ScoredMove = { move: string; loss: number; match: boolean };
+type ScoredMove = {
+  move: string;
+  loss: number;
+  match: boolean;
+  elapsedMs: number;
+};
 type Comparison = {
   name: string;
   fen: string;
@@ -13,10 +24,15 @@ type Comparison = {
   incumbent: ScoredMove;
 };
 
-const [candidatePath, incumbentPath, output] = Bun.argv.slice(2);
-if (!candidatePath || !incumbentPath || !output) {
+const [candidatePath, incumbentPath, output, mode] = Bun.argv.slice(2);
+if (
+  !candidatePath ||
+  !incumbentPath ||
+  !output ||
+  (mode && mode !== '--search-ab')
+) {
   throw new Error(
-    'Usage: bun run benchmark:strength <candidate> <incumbent> <report>',
+    'Usage: bun run benchmark:strength <candidate> <incumbent> <report> [--search-ab]',
   );
 }
 
@@ -32,9 +48,25 @@ const [candidate, incumbent] = await Promise.all([
   checkpoint(candidatePath),
   checkpoint(incumbentPath),
 ]);
+if (mode && candidate.hash !== incumbent.hash)
+  throw new Error('Search comparison requires identical checkpoint weights.');
+
+const incumbentSearch = mode ? chooseMoveBaseline : chooseMove;
+const candidateSearch = mode ? chooseMoveTactical : chooseMove;
+async function timedSearch(
+  search: typeof chooseMove,
+  game: Chess,
+  evaluate: Awaited<ReturnType<typeof evaluator>>,
+) {
+  const start = performance.now();
+  const move = await search(game, evaluate, moveBudgetMs);
+  if (!move) throw new Error(`No move from ${game.fen()}.`);
+  return { move: coordinate(move), elapsedMs: performance.now() - start };
+}
 const stockfish = await startStockfish(Bun.env.STOCKFISH ?? 'stockfish');
 try {
   const evaluateCandidate = await evaluator(candidate.bytes);
+  if (mode) evaluateCandidate.movePrior = undefined;
   const evaluateIncumbent =
     candidate.hash === incumbent.hash
       ? evaluateCandidate
@@ -42,17 +74,19 @@ try {
   const positions: Comparison[] = [];
   for (const { name, fen } of referencePositions) {
     const game = new Chess(fen);
-    const candidateMove = await chooseMove(game, evaluateCandidate, Infinity);
+    const candidateMove = await timedSearch(
+      candidateSearch,
+      game,
+      evaluateCandidate,
+    );
     const incumbentMove =
-      evaluateIncumbent === evaluateCandidate
+      !mode && evaluateIncumbent === evaluateCandidate
         ? candidateMove
-        : await chooseMove(game, evaluateIncumbent, Infinity);
-    if (!candidateMove || !incumbentMove)
-      throw new Error(`No move from ${name}.`);
+        : await timedSearch(incumbentSearch, game, evaluateIncumbent);
 
     const best = await stockfish.analyze(fen);
     const pointsByMove = new Map([[best.move, best.points]]);
-    async function scoreMove(move: string) {
+    async function scoreMove({ move, elapsedMs }: typeof candidateMove) {
       let points = pointsByMove.get(move);
       if (points === undefined) {
         points = (await stockfish.analyze(fen, move)).points;
@@ -62,14 +96,15 @@ try {
         move,
         loss: Math.max(0, best.points - points),
         match: move === best.move,
+        elapsedMs,
       };
     }
     positions.push({
       name,
       fen,
       stockfish: best,
-      candidate: await scoreMove(coordinate(candidateMove)),
-      incumbent: await scoreMove(coordinate(incumbentMove)),
+      candidate: await scoreMove(candidateMove),
+      incumbent: await scoreMove(incumbentMove),
     });
   }
 
@@ -86,7 +121,9 @@ try {
     };
   }
   const report = {
-    suite: 'choux-reference-v1',
+    suite: 'choux-reference-v2',
+    moveBudgetMs,
+    mode: mode ? 'search-ab' : 'checkpoints',
     engine: stockfish.name,
     nodes,
     positionCount: positions.length,

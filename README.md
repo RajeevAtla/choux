@@ -35,7 +35,7 @@ Each input row contains 768 piece-square flags (12 planes of 64 squares arranged
 | Output bias    | `1`        |                    1 |
 | **Total**      |            |           **50,177** |
 
-[`public/model.f32`](public/model.f32) stores those four tensors in order as raw little-endian Float32 values. The checkpoint is **200,708 bytes (about 196 KiB)**.
+[`public/model.f32`](public/model.f32) stores those four tensors in order as raw little-endian Float32 values. The value-only checkpoint is **200,708 bytes**. A checkpoint with the optional 785-weight move policy is **203,848 bytes**.
 
 ## Training
 
@@ -55,7 +55,13 @@ Training checks mean absolute error (MAE) on a fixed holdout set after each epoc
 
 ### Stockfish comparison
 
-Every retrain compares the candidate and incumbent against [Stockfish 18](https://github.com/official-stockfish/Stockfish/releases/tag/sf_18) on 22 fixed positions excluded from training. At 20,000 nodes per search, Stockfish estimates win, draw, and loss probabilities for its best move and for each chosen move. The benchmark reports the average expected-score points lost (`win + draw / 2`) and agreement with Stockfish's best move. A candidate must pass the validation MAE gate and chess smoke test and match or beat the incumbent's Stockfish mean loss before deployment.
+Training uses Stockfish to rescore selected issue and self-play positions, including positions where Choux's preferred move loses expected score. It samples Stockfish targets for about 15% of training examples and uses 48 separate Stockfish-labeled positions for early stopping and validation. The optional move policy learns from Stockfish scores for several legal moves per position, then helps order browser search. Older checkpoints still load without a policy.
+
+Add `?search=tactical` to the browser URL to try time-bounded iterative search with tactical extensions. Run `bun run benchmark:matches <candidate> <incumbent> <report>` to play paired openings against a node-limited Stockfish opponent and the incumbent. Add `--search-ab` and pass the same checkpoint twice to compare the tactical search with the baseline. Set `STOCKFISH` to the executable if it is outside PATH. To produce the report in Actions, enable **match_benchmark** along with **retrain** under **Check code → Run workflow**.
+
+[DeepMind's mctx](https://github.com/google-deepmind/mctx) implements batched MuZero and Gumbel MuZero search in Python JAX. Its search expects fixed-shape policy logits, values, a legal-action mask, and a JAX-compatible recurrent transition. Choux's browser currently uses JAX-JS inference and chess.js for legal moves. A future offline mctx experiment would need a JAX chess transition and a fixed move encoding, or a learned dynamics model. The browser and hourly workflow continue to use Bun.
+
+Every retrain compares the candidate and incumbent against [Stockfish 18](https://github.com/official-stockfish/Stockfish/releases/tag/sf_18) on 22 fixed positions excluded from training. Choux gets the same 200 ms search budget as browser play. At 20,000 nodes per search, Stockfish estimates win, draw, and loss probabilities for its best move and for each chosen move. The benchmark reports the average expected-score points lost (`win + draw / 2`) and agreement with Stockfish's best move. A candidate must pass the validation MAE gate and chess smoke test and match or beat the incumbent's Stockfish mean loss before deployment.
 
 The `stockfish-benchmark` Actions artifact contains the per-position report and validation metrics. The compact `public/model-history.jsonl` file records each run's summary, including rejected candidates, and feeds the **Model history** table in **Engine & model**.
 
