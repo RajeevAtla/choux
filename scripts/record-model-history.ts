@@ -22,8 +22,13 @@ const rows: ModelHistoryEntry[] = (await history.exists())
       .filter(Boolean)
       .map((line) => JSON.parse(line))
   : [];
-const { eligible, candidateMae, incumbentMae, trainingPositions } =
-  await Bun.file(trainingPath).json();
+const {
+  eligible,
+  candidateMae,
+  incumbentMae,
+  trainingPositions,
+  validationSource,
+} = await Bun.file(trainingPath).json();
 const { suite, engine, nodes, positionCount, candidate, incumbent } =
   await Bun.file(stockfishPath).json();
 const entry: ModelHistoryEntry = {
@@ -32,6 +37,7 @@ const entry: ModelHistoryEntry = {
   promoted: promoted === 'true',
   eligible,
   candidateMae,
+  validationSource,
   incumbentMae,
   trainingPositions,
   suite,

@@ -10,6 +10,7 @@ export type ModelHistoryEntry = {
   promoted: boolean;
   eligible: boolean;
   candidateMae: number;
+  validationSource?: 'stockfish-v1' | 'heuristic';
   incumbentMae: number | null;
   trainingPositions: number;
   suite: string;

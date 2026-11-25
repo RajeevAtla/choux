@@ -56,7 +56,9 @@ $effect(() => {
     {entries[0].positionCount} fixed positions. Lower is better.
   </p>
   <p class="note">
-    Latest held-out MAE · incumbent
+    Latest held-out MAE ({entries[0].validationSource === 'stockfish-v1'
+      ? 'Stockfish'
+      : 'heuristic teacher'}) · incumbent
     {entries[0].incumbentMae?.toFixed(3) ?? '—'} · candidate
     {entries[0].candidateMae.toFixed(3)}
   </p>
@@ -84,6 +86,9 @@ $effect(() => {
             <small class="note"
               >{entry.promoted ? 'Promoted' : 'Kept incumbent'}</small
             >
+            {#if entry.suite === 'choux-reference-v1'}
+              <small class="note">Uncapped search benchmark</small>
+            {/if}
           </th>
           <td>{entry.incumbent.meanLoss.toFixed(2)}</td>
           <td>{entry.candidate.meanLoss.toFixed(2)}</td>

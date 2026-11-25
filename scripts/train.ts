@@ -18,6 +18,10 @@ import {
   type TrainingGame,
 } from './examples';
 import { referencePositions } from './reference-positions';
+import {
+  labelWithStockfish,
+  stockfishValidationFens,
+} from './stockfish-training';
 
 type Weights = ReturnType<typeof tensors>;
 const batchSize = 64;
@@ -92,12 +96,10 @@ const randomize = random(48902);
 let weights = tensors(
   Float32Array.from({ length: WEIGHT_COUNT }, () => (randomize() - 0.5) * 0.16),
 );
-const validation = generate(16, 93285);
-const baseline = await error(weights, validation);
 const incumbentFile = Bun.file(incumbent);
-const bestPublished = (await incumbentFile.exists())
-  ? await error(tensors(unpack(await incumbentFile.arrayBuffer())), validation)
-  : Infinity;
+const incumbentBytes = (await incumbentFile.exists())
+  ? await incumbentFile.arrayBuffer()
+  : undefined;
 const games = (await readGames(dataset)).slice(-256);
 const seen = new Set<string>();
 const distinct = (game: { moves: string[] }) => {
@@ -115,23 +117,77 @@ if (selfPlayDataset) {
   selfPlayGames = selfPlay.filter(distinct);
 }
 const excludedPositions = new Set(
-  referencePositions.map(({ fen }) => positionKey(fen)),
+  referencePositions
+    .map(({ fen }) => positionKey(fen))
+    .concat(stockfishValidationFens.map(positionKey)),
 );
-const submittedPositions = fromGames(submittedGames, excludedPositions);
-const selfPlayPositions = fromGames(selfPlayGames, excludedPositions);
-const stockfishPositions = selfPlayPositions.filter(
-  ({ stockfish }) => stockfish,
-).length;
+const stockfishEnabled = Bun.env.CHOUX_TRAINING_STOCKFISH === '1';
+if (stockfishEnabled && !incumbentBytes)
+  throw new Error(
+    'Targeted Stockfish labeling requires an incumbent checkpoint.',
+  );
+const stockfish =
+  stockfishEnabled && incumbentBytes
+    ? await labelWithStockfish(
+        Bun.env.STOCKFISH ?? 'stockfish',
+        incumbentBytes,
+        submittedGames,
+        selfPlayGames,
+        excludedPositions,
+      )
+    : undefined;
+if (stockfish && Bun.env.CHOUX_POLICY_POSITIONS)
+  await Bun.write(
+    Bun.env.CHOUX_POLICY_POSITIONS,
+    JSON.stringify(stockfish.policyPositions),
+  );
+const heuristicValidation = generate(16, 93285);
+const validation = stockfish?.validation ?? heuristicValidation;
+const baseline = await error(weights, validation);
+const incumbentWeights = incumbentBytes
+  ? tensors(unpack(incumbentBytes))
+  : undefined;
+const bestPublished = incumbentWeights
+  ? await error(incumbentWeights, validation)
+  : Infinity;
+const submittedPositions = fromGames(
+  submittedGames,
+  excludedPositions,
+  stockfish?.labels,
+);
+const selfPlayPositions = fromGames(
+  selfPlayGames,
+  excludedPositions,
+  stockfish?.labels,
+);
 const training = generate(144, 12459, excludedPositions).concat(
   submittedPositions,
   selfPlayPositions,
 );
+const labeled = training.filter(({ stockfish }) => stockfish);
+const stockfishPositions = labeled.length;
+// Keep Stockfish examples at about 15% of the training set when available.
+const extraLabels = Math.max(
+  0,
+  Math.ceil((0.15 * training.length - stockfishPositions) / 0.85),
+);
+if (stockfishPositions)
+  for (let i = 0; i < extraLabels; i++)
+    training.push(labeled[i % stockfishPositions]);
+const stockfishTrainingSamples =
+  stockfishPositions + (stockfishPositions ? extraLabels : 0);
 console.log(
   `Sampled ${submittedPositions.length} positions from ${submittedGames.length} issue games and ${selfPlayPositions.length} positions from ${selfPlayGames.length} self-play games.`,
 );
-console.log(`Used Stockfish scores for ${stockfishPositions} positions.`);
 console.log(
-  `Training on ${training.length} positions, validating on ${validation.length}. Random MAE ${baseline.toFixed(4)}.`,
+  `Used Stockfish scores for ${stockfishPositions} positions (${stockfishTrainingSamples} training samples).`,
+);
+if (stockfish)
+  console.log(
+    `Screened ${stockfish.screened} positions, retaining ${stockfish.mistakes} mistakes and ${stockfish.ordinary} ordinary positions.`,
+  );
+console.log(
+  `Training on ${training.length} samples, validating on ${validation.length} ${stockfish ? 'Stockfish' : 'heuristic'} positions. Random MAE ${baseline.toFixed(4)}.`,
 );
 
 let best = Infinity;
@@ -165,7 +221,8 @@ for (let epoch = 1; epoch <= maxEpochs; epoch++) {
 
 if (!checkpoint) throw new Error('Training produced no finite checkpoint.');
 console.log(`Best validation MAE at epoch ${bestEpoch} of ${epochsRun}.`);
-const roundTrip = await error(tensors(unpack(checkpoint)), validation);
+const candidateWeights = tensors(unpack(checkpoint));
+const roundTrip = await error(candidateWeights, validation);
 if (Math.abs(roundTrip - best) > 1e-6)
   throw new Error('Exported checkpoint failed validation.');
 const reportPath = Bun.env.CHOUX_TRAINING_REPORT;
@@ -197,6 +254,21 @@ if (reportPath) {
       selfPlayGames: selfPlayGames.length,
       selfPlayPositions: selfPlayPositions.length,
       stockfishPositions,
+      stockfishTrainingSamples,
+      stockfishScreenedPositions: stockfish?.screened ?? 0,
+      stockfishMistakes: stockfish?.mistakes ?? 0,
+      stockfishOrdinaryPositions: stockfish?.ordinary ?? 0,
+      validationSource: stockfish ? 'stockfish-v1' : 'heuristic',
+      validationPositions: validation.length,
+      heuristicCandidateMae: stockfish
+        ? await error(candidateWeights, heuristicValidation)
+        : roundTrip,
+      heuristicIncumbentMae:
+        stockfish && incumbentWeights
+          ? await error(incumbentWeights, heuristicValidation)
+          : Number.isFinite(bestPublished)
+            ? bestPublished
+            : null,
     }),
   );
 }
