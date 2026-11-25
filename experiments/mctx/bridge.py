@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import mctx
 import numpy as np
 from pgx.chess import Chess
-from pgx._src.games.chess import FROM_PLANE, PAWN, TO_PLANE
+from pgx._src.games.chess import FROM_PLANE, PAWN, TO_PLANE, _zobrist_hash
 
 ENV = Chess()
 ACTIONS = ENV.num_actions
@@ -19,7 +19,15 @@ HIDDEN = 64
 VALUE_WEIGHTS = INPUTS * HIDDEN + 2 * HIDDEN + 1
 POLICY_WEIGHTS = 785
 STEP = jax.jit(ENV.step)
-INIT = jax.jit(ENV.init)
+
+
+@jax.jit
+def init(key):
+    state = ENV.init(key)
+    board = state._x
+    # Seed history with the hash from the installed JAX-generated Pgx tables.
+    history = board.hash_history.at[0].set(_zobrist_hash(board))
+    return state.replace(_x=board._replace(hash_history=history))
 
 
 def encode(state):
@@ -151,7 +159,7 @@ def decode_moves(state):
 
 
 def replay(moves):
-    state = INIT(jax.random.key(0))
+    state = init(jax.random.key(0))
     for move in moves:
         legal = {uci: action for action, uci in decode_moves(state).items()}
         if not re.fullmatch(r"[a-h][1-8][a-h][1-8][qrbn]?", move) or move not in legal:
